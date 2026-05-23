@@ -1,52 +1,67 @@
 #include <Arduino.h>
 #include <WiFi.h>
-#include <HTTPClient.h>
-#include <WiFiClientSecure.h>
-#include <ArduinoJson.h>
+
 #include "aircraft.h"
-#include "display.h"
 #include "opensky_client.h"
 #include "postcode_client.h"
+#include "display.h"
 
 const char* WIFI_SSID = "Vodafone3390-2.4G";
 const char* WIFI_PASSWORD = "xZcdzCd6fRtcFTaK";
-
 const char* POSTCODE = "WV95BL";
 
+const unsigned long REFRESH_INTERVAL_MS = 15000;
+
+float userLatitude = 0.0;
+float userLongitude = 0.0;
+bool locationReady = false;
+
+unsigned long lastRefreshTime = 0;
+
 void connectWiFi();
-bool fetchPostcode(float& latitude, float& longitude);
-void fetchNearbyAircraft(float latitude, float longitude);
 
 void setup() {
     Serial.begin(115200);
     delay(1000);
 
     Serial.println();
-    Serial.println("DeskDar ESP32 live aircraft test");
+    Serial.println("DeskDar starting...");
 
     connectWiFi();
 
-    float latitude = 0.0;
-    float longitude = 0.0;
+    locationReady = fetchPostcode(
+        POSTCODE,
+        userLatitude,
+        userLongitude
+    );
 
-    if (fetchPostcode(POSTCODE, latitude, longitude)) {
-        Aircraft aircraftList[MAX_AIRCRAFT];
-
-        int aircraftCount = fetchNearbyAircraft(
-            latitude,
-            longitude,
-            aircraftList,
-            MAX_AIRCRAFT
-        );
-
-        renderAircraftList(aircraftList, aircraftCount);
-    } else {
+    if (!locationReady) {
         Serial.println("Could not fetch postcode location.");
     }
 }
 
 void loop() {
-    delay(10000);
+    if (!locationReady) {
+        delay(5000);
+        return;
+    }
+
+    unsigned long now = millis();
+
+    if (lastRefreshTime == 0 || now - lastRefreshTime >= REFRESH_INTERVAL_MS) {
+        lastRefreshTime = now;
+
+        Aircraft aircraftList[MAX_AIRCRAFT];
+
+        int aircraftCount = fetchNearbyAircraft(
+            userLatitude,
+            userLongitude,
+            aircraftList,
+            MAX_AIRCRAFT
+        );
+
+        renderAircraftList(aircraftList, aircraftCount);
+    }
 }
 
 void connectWiFi() {
@@ -65,4 +80,3 @@ void connectWiFi() {
     Serial.print("IP address: ");
     Serial.println(WiFi.localIP());
 }
-
