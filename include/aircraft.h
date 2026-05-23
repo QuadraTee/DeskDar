@@ -1,11 +1,16 @@
 #pragma once
 
+#include <Arduino.h>
+
 
 
 struct Aircraft {
     String icao24;
     String callsign;
     String originCountry;
+    String registration;
+    String aircraftModel;
+    String aircraftType;
 
     float latitude;
     float longitude;

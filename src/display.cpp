@@ -12,8 +12,20 @@ void renderAircraftSummary(const Aircraft& aircraft, int position) {
     Serial.print("Flight: ");
     Serial.println(aircraft.callsign);
 
+    Serial.print("ICAO24: ");
+    Serial.println(aircraft.icao24);
+
     Serial.print("Country: ");
     Serial.println(aircraft.originCountry);
+
+    Serial.print("Registration: ");
+    Serial.println(aircraft.registration);
+
+    Serial.print("Model: ");
+    Serial.println(aircraft.aircraftModel);
+
+    Serial.print("Type: ");
+    Serial.println(aircraft.aircraftType);
 
     Serial.print("Distance: ");
     Serial.print(aircraft.distanceKm, 1);

@@ -2,6 +2,7 @@
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
+#include "aircraft_metadata.h"
 
 #include "opensky_client.h"
 
@@ -190,6 +191,7 @@ int fetchNearbyAircraft(
         aircraft.icao24 = state[0].as<String>();
         aircraft.callsign = state[1].as<String>();
         aircraft.originCountry = state[2].as<String>();
+        enrichAircraftMetadata(aircraft);
 
         aircraft.longitude = state[5] | 0.0;
         aircraft.latitude = state[6] | 0.0;
