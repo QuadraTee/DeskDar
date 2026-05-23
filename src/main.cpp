@@ -3,6 +3,7 @@
 #include <HTTPClient.h>
 #include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
+#include "aircraft.h"
 
 const char* WIFI_SSID = "Vodafone3390-2.4G";
 const char* WIFI_PASSWORD = "xZcdzCd6fRtcFTaK";
@@ -155,6 +156,68 @@ void fetchNearbyAircraft(float latitude, float longitude) {
     String payload = https.getString();
     https.end();
 
-    Serial.println("Aircraft response preview:");
-    Serial.println(payload.substring(0, 1000));
+JsonDocument doc;
+DeserializationError error = deserializeJson(doc, payload);
+
+if (error) {
+    Serial.print("OpenSky JSON parse failed: ");
+    Serial.println(error.c_str());
+    return;
+}
+
+JsonArray states = doc["states"];
+
+Serial.println();
+Serial.print("Aircraft found: ");
+Serial.println(states.size());
+
+for (JsonArray state : states) {
+    Aircraft aircraft;
+
+    aircraft.icao24 = state[0].as<String>();
+    aircraft.callsign = state[1].as<String>();
+    aircraft.originCountry = state[2].as<String>();
+
+    aircraft.longitude = state[5] | 0.0;
+    aircraft.latitude = state[6] | 0.0;
+
+    aircraft.altitudeMeters = state[7] | 0.0;
+    aircraft.altitudeFeet = aircraft.altitudeMeters * 3.28084;
+
+    aircraft.onGround = state[8] | false;
+
+    aircraft.speedMetersPerSecond = state[9] | 0.0;
+    aircraft.speedKnots = aircraft.speedMetersPerSecond * 1.94384;
+
+    aircraft.headingDegrees = state[10] | 0.0;
+    aircraft.verticalRate = state[11] | 0.0;
+
+    Serial.println("--------------------");
+    Serial.print("Flight: ");
+    Serial.println(aircraft.callsign);
+
+    Serial.print("Country: ");
+    Serial.println(aircraft.originCountry);
+
+    Serial.print("Altitude: ");
+    Serial.print(aircraft.altitudeFeet, 0);
+    Serial.println(" ft");
+
+    Serial.print("Speed: ");
+    Serial.print(aircraft.speedKnots, 0);
+    Serial.println(" kt");
+
+    Serial.print("Heading: ");
+    Serial.print(aircraft.headingDegrees, 0);
+    Serial.println(" deg");
+
+    Serial.print("Vertical rate: ");
+    if (aircraft.verticalRate > 0) {
+        Serial.println("climbing");
+    } else if (aircraft.verticalRate < 0) {
+        Serial.println("descending");
+    } else {
+        Serial.println("level");
+    }
+}
 }
