@@ -13,6 +13,11 @@ void calculateRadarPosition(
     float maxRangeKm
 );
 
+void calculateHeadingVector(
+    Aircraft& aircraft,
+    int arrowLength
+);
+
 float degreesToRadians(float degrees) {
     return degrees * PI / 180.0;
 }
@@ -79,6 +84,20 @@ void calculateRadarPosition(
 
     aircraft.radarY =
         centerY - cos(bearingRad) * screenRadius;
+}
+
+void calculateHeadingVector(
+    Aircraft& aircraft,
+    int arrowLength
+) {
+    float headingRad =
+        degreesToRadians(aircraft.headingDegrees);
+
+    aircraft.headingX =
+        aircraft.radarX + sin(headingRad) * arrowLength;
+
+    aircraft.headingY =
+        aircraft.radarY - cos(headingRad) * arrowLength;
 }
 
 String compassDirectionFromBearing(float bearing) {
@@ -210,6 +229,11 @@ int fetchNearbyAircraft(
         120,
         110,
         50.0
+        );
+
+        calculateHeadingVector(
+        aircraft,
+        8
         );
 
         aircraftList[aircraftCount] = aircraft;

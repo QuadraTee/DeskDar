@@ -24,6 +24,9 @@ struct Aircraft {
     int radarX;
     int radarY;
 
+    int headingX;
+    int headingY;
+
     String compassDirection;
 
     bool onGround;
