@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WebServer.h>
+#include <time.h>
 
 #include "aircraft.h"
 #include "opensky_client.h"
@@ -13,20 +14,11 @@
 WebServer server(80);
 
 String debugLog = "";
-const int MAX_DEBUG_LOG_LENGTH = 4000;
+const int MAX_DEBUG_LOG_LENGTH = 8000;
 
-void addDebugLog(const String& message) {
-    Serial.println(message);
-
-    debugLog += message;
-    debugLog += "\n";
-
-    if (debugLog.length() > MAX_DEBUG_LOG_LENGTH) {
-        debugLog = debugLog.substring(
-            debugLog.length() - MAX_DEBUG_LOG_LENGTH
-        );
-    }
-}
+const char* NTP_SERVER = "pool.ntp.org";
+const long GMT_OFFSET_SECONDS = 0;
+const int DAYLIGHT_OFFSET_SECONDS = 3600;
 
 const unsigned long AIRCRAFT_REFRESH_MS = 60000;
 const unsigned long METADATA_REFRESH_MS = 20000;
@@ -45,6 +37,86 @@ bool metadataTaskRunning = false;
 
 void connectWiFi();
 
+String getCurrentTimeString() {
+    struct tm timeinfo;
+
+    if (!getLocalTime(&timeinfo)) {
+        return "??:??:??";
+    }
+
+    char buffer[16];
+    strftime(buffer, sizeof(buffer), "%H:%M:%S", &timeinfo);
+
+    return String(buffer);
+}
+
+void addDebugLog(const String& message) {
+    String line = "[" + getCurrentTimeString() + "] " + message;
+
+    Serial.println(line);
+
+    debugLog += line;
+    debugLog += "\n";
+
+    if (debugLog.length() > MAX_DEBUG_LOG_LENGTH) {
+        debugLog = debugLog.substring(
+            debugLog.length() - MAX_DEBUG_LOG_LENGTH
+        );
+    }
+}
+
+void setupTime() {
+    configTime(
+        GMT_OFFSET_SECONDS,
+        DAYLIGHT_OFFSET_SECONDS,
+        NTP_SERVER
+    );
+
+    Serial.print("Syncing time");
+
+    struct tm timeinfo;
+
+    while (!getLocalTime(&timeinfo)) {
+        delay(500);
+        Serial.print(".");
+    }
+
+    Serial.println();
+    addDebugLog("Time synced");
+}
+
+void addAircraftToDebugLog(const Aircraft aircraftList[], int aircraftCount) {
+    addDebugLog("Aircraft list:");
+
+    for (int i = 0; i < aircraftCount; i++) {
+        String line = "";
+
+        line += "#";
+        line += String(i + 1);
+        line += " ";
+        line += aircraftList[i].callsign;
+        line += " | ICAO24: ";
+        line += aircraftList[i].icao24;
+        line += " | ";
+        line += aircraftList[i].registration;
+        line += " | ";
+        line += aircraftList[i].aircraftModel;
+        line += " | ";
+        line += String(aircraftList[i].distanceKm, 1);
+        line += " km ";
+        line += aircraftList[i].compassDirection;
+        line += " | ";
+        line += String(aircraftList[i].altitudeFeet, 0);
+        line += " ft | ";
+        line += String(aircraftList[i].speedKnots, 0);
+        line += " kt | Heading ";
+        line += String(aircraftList[i].headingDegrees, 0);
+        line += " deg";
+
+        addDebugLog(line);
+    }
+}
+
 void metadataTask(void* parameter) {
     metadataTaskRunning = true;
 
@@ -61,7 +133,6 @@ void handleDebugPage() {
     String html = "";
 
     html += "<!DOCTYPE html><html><head>";
-    html += "<meta http-equiv='refresh' content='5'>";
     html += "<title>DeskDar Debug</title>";
     html += "</head><body>";
     html += "<h1>DeskDar Debug</h1>";
@@ -87,14 +158,70 @@ void handleDebugPage() {
     html += String(userLongitude, 6);
     html += "</p>";
 
-    html += "<h2>Logs</h2>";
-    html += "<pre>";
+    html += R"rawliteral(
+<h2>Logs</h2>
+
+<div
+    id="logBox"
+    style="
+        background:#111;
+        color:#0f0;
+        padding:10px;
+        height:400px;
+        overflow-y:scroll;
+        font-family:monospace;
+        white-space:pre-wrap;
+        border:1px solid #444;
+    "
+>
+)rawliteral";
+
     html += debugLog;
-    html += "</pre>";
+
+    html += R"rawliteral(
+</div>
+
+<script>
+const logBox = document.getElementById('logBox');
+
+function isNearBottom() {
+    return (
+        logBox.scrollHeight -
+        logBox.scrollTop -
+        logBox.clientHeight
+    ) < 50;
+}
+
+async function updateLogs() {
+    const shouldAutoScroll = isNearBottom();
+
+    try {
+        const response = await fetch('/logs');
+        const text = await response.text();
+
+        logBox.textContent = text;
+
+        if (shouldAutoScroll) {
+            logBox.scrollTop = logBox.scrollHeight;
+        }
+    } catch (error) {
+        console.log('Log update failed', error);
+    }
+}
+
+setInterval(updateLogs, 3000);
+updateLogs();
+</script>
+
+)rawliteral";
 
     html += "</body></html>";
 
     server.send(200, "text/html", html);
+}
+
+void handleLogs() {
+    server.send(200, "text/plain", debugLog);
 }
 
 void setup() {
@@ -102,12 +229,15 @@ void setup() {
     delay(1000);
 
     Serial.println();
-    addDebugLog("DeskDar starting...");
 
     connectWiFi();
+    setupTime();
+
+    addDebugLog("DeskDar starting...");
 
     server.on("/", handleDebugPage);
     server.on("/debug", handleDebugPage);
+    server.on("/logs", handleLogs);
 
     server.on("/favicon.ico", []() {
         server.send(204);
@@ -196,6 +326,7 @@ void loop() {
         }
 
         addDebugLog("Aircraft fetched: " + String(aircraftCount));
+        addAircraftToDebugLog(aircraftList, aircraftCount);
 
         renderAircraftList(aircraftList, aircraftCount);
         renderAsciiRadar(aircraftList, aircraftCount);
@@ -223,7 +354,7 @@ void loop() {
 }
 
 void connectWiFi() {
-    addDebugLog("Connecting to WiFi...");
+    Serial.println("Connecting to WiFi...");
 
     WiFi.mode(WIFI_STA);
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -233,6 +364,8 @@ void connectWiFi() {
         Serial.print(".");
     }
 
-    addDebugLog("WiFi connected!");
-    addDebugLog("IP address: " + WiFi.localIP().toString());
+    Serial.println();
+    Serial.println("WiFi connected!");
+    Serial.print("IP address: ");
+    Serial.println(WiFi.localIP());
 }
