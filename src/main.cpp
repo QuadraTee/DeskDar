@@ -4,6 +4,7 @@
 #include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
 #include "aircraft.h"
+#include "display.h"
 
 const char* WIFI_SSID = "Vodafone3390-2.4G";
 const char* WIFI_PASSWORD = "xZcdzCd6fRtcFTaK";
@@ -282,72 +283,20 @@ aircraft.compassDirection = compassDirectionFromBearing(
         }
     }
 
-    // Sort aircraft by distance (closest first)
+   // Sort aircraft by distance (closest first)
 
-    for (int i = 0; i < aircraftCount - 1; i++) {
+for (int i = 0; i < aircraftCount - 1; i++) {
 
-        for (int j = i + 1; j < aircraftCount; j++) {
+    for (int j = i + 1; j < aircraftCount; j++) {
 
-            if (aircraftList[j].distanceKm < aircraftList[i].distanceKm) {
+        if (aircraftList[j].distanceKm < aircraftList[i].distanceKm) {
 
-                Aircraft temp = aircraftList[i];
-                aircraftList[i] = aircraftList[j];
-                aircraftList[j] = temp;
-            }
+            Aircraft temp = aircraftList[i];
+            aircraftList[i] = aircraftList[j];
+            aircraftList[j] = temp;
         }
     }
-
-    Serial.println();
-    Serial.println("Closest aircraft first:");
-    Serial.println("===================="); 
-
-for (int i = 0; i < aircraftCount; i++) {
-
-    Serial.println();
-
-    Serial.print("#");
-    Serial.println(i + 1);
-
-    Serial.println("--------------------");
-
-    Serial.print("Flight: ");
-    Serial.println(aircraftList[i].callsign);
-
-    Serial.print("Country: ");
-    Serial.println(aircraftList[i].originCountry);
-
-    Serial.print("Distance: ");
-    Serial.print(aircraftList[i].distanceKm, 1);
-    Serial.println(" km");
-
-    Serial.print("Direction: ");
-    Serial.print(aircraftList[i].compassDirection);
-    Serial.print(" / ");
-    Serial.print(aircraftList[i].bearingDegrees, 0);
-    Serial.println(" deg");
-
-    Serial.print("Altitude: ");
-    Serial.print(aircraftList[i].altitudeFeet, 0);
-    Serial.println(" ft");
-
-    Serial.print("Speed: ");
-    Serial.print(aircraftList[i].speedKnots, 0);
-    Serial.println(" kt");
-
-    Serial.print("Heading: ");
-    Serial.print(aircraftList[i].headingDegrees, 0);
-    Serial.println(" deg");
-
-    Serial.print("Vertical rate: ");
-
-    if (aircraftList[i].verticalRate > 0) {
-        Serial.println("climbing");
-    }
-    else if (aircraftList[i].verticalRate < 0) {
-        Serial.println("descending");
-    }
-    else {
-        Serial.println("level");
-    }
 }
+
+renderAircraftList(aircraftList, aircraftCount);
 }
