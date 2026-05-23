@@ -9,6 +9,7 @@ const char* WIFI_SSID = "Vodafone3390-2.4G";
 const char* WIFI_PASSWORD = "xZcdzCd6fRtcFTaK";
 
 const char* POSTCODE = "WV95BL";
+const int MAX_AIRCRAFT = 20;
 
 void connectWiFi();
 bool fetchPostcode(float& latitude, float& longitude);
@@ -136,8 +137,8 @@ float calculateDistanceKm(float lat1, float lon1, float lat2, float lon2) {
 
 
 
-
 void fetchNearbyAircraft(float latitude, float longitude) {
+
     WiFiClientSecure client;
     client.setInsecure();
 
@@ -181,78 +182,121 @@ void fetchNearbyAircraft(float latitude, float longitude) {
     String payload = https.getString();
     https.end();
 
-JsonDocument doc;
-DeserializationError error = deserializeJson(doc, payload);
+    JsonDocument doc;
 
-if (error) {
-    Serial.print("OpenSky JSON parse failed: ");
-    Serial.println(error.c_str());
-    return;
-}
+    DeserializationError error = deserializeJson(doc, payload);
 
-JsonArray states = doc["states"];
+    if (error) {
+        Serial.print("OpenSky JSON parse failed: ");
+        Serial.println(error.c_str());
+        return;
+    }
 
-Serial.println();
-Serial.print("Aircraft found: ");
-Serial.println(states.size());
+    JsonArray states = doc["states"];
 
-for (JsonArray state : states) {
-    Aircraft aircraft;
+    Serial.println();
+    Serial.print("Aircraft found: ");
+    Serial.println(states.size());
 
-    aircraft.icao24 = state[0].as<String>();
-    aircraft.callsign = state[1].as<String>();
-    aircraft.originCountry = state[2].as<String>();
+    const int MAX_AIRCRAFT = 20;
 
-    aircraft.longitude = state[5] | 0.0;
-    aircraft.latitude = state[6] | 0.0;
+    Aircraft aircraftList[MAX_AIRCRAFT];
+    int aircraftCount = 0;
 
-    aircraft.altitudeMeters = state[7] | 0.0;
-    aircraft.altitudeFeet = aircraft.altitudeMeters * 3.28084;
+    for (JsonArray state : states) {
 
-    aircraft.onGround = state[8] | false;
+        Aircraft aircraft;
 
-    aircraft.speedMetersPerSecond = state[9] | 0.0;
-    aircraft.speedKnots = aircraft.speedMetersPerSecond * 1.94384;
+        aircraft.icao24 = state[0].as<String>();
+        aircraft.callsign = state[1].as<String>();
+        aircraft.originCountry = state[2].as<String>();
 
-    aircraft.headingDegrees = state[10] | 0.0;
-    aircraft.verticalRate = state[11] | 0.0;
+        aircraft.longitude = state[5] | 0.0;
+        aircraft.latitude = state[6] | 0.0;
 
-    aircraft.distanceKm = calculateDistanceKm(
-    latitude,
-    longitude,
-    aircraft.latitude,
-    aircraft.longitude
-   );
+        aircraft.altitudeMeters = state[7] | 0.0;
+        aircraft.altitudeFeet = aircraft.altitudeMeters * 3.28084;
+
+        aircraft.onGround = state[8] | false;
+
+        aircraft.speedMetersPerSecond = state[9] | 0.0;
+        aircraft.speedKnots = aircraft.speedMetersPerSecond * 1.94384;
+
+        aircraft.headingDegrees = state[10] | 0.0;
+        aircraft.verticalRate = state[11] | 0.0;
+
+        aircraft.distanceKm = calculateDistanceKm(
+            latitude,
+            longitude,
+            aircraft.latitude,
+            aircraft.longitude
+        );
+
+        if (aircraftCount < MAX_AIRCRAFT) {
+            aircraftList[aircraftCount] = aircraft;
+            aircraftCount++;
+        }
+    }
+
+    // Sort aircraft by distance (closest first)
+
+    for (int i = 0; i < aircraftCount - 1; i++) {
+
+        for (int j = i + 1; j < aircraftCount; j++) {
+
+            if (aircraftList[j].distanceKm < aircraftList[i].distanceKm) {
+
+                Aircraft temp = aircraftList[i];
+                aircraftList[i] = aircraftList[j];
+                aircraftList[j] = temp;
+            }
+        }
+    }
+
+    Serial.println();
+    Serial.println("Closest aircraft first:");
+    Serial.println("===================="); 
+
+for (int i = 0; i < aircraftCount; i++) {
+
+    Serial.println();
+
+    Serial.print("#");
+    Serial.println(i + 1);
 
     Serial.println("--------------------");
-    Serial.print("Flight: ");
-    Serial.println(aircraft.callsign);
 
-    Serial.print("Distance: ");
-    Serial.print(aircraft.distanceKm, 1);
-    Serial.println(" km");
+    Serial.print("Flight: ");
+    Serial.println(aircraftList[i].callsign);
 
     Serial.print("Country: ");
-    Serial.println(aircraft.originCountry);
+    Serial.println(aircraftList[i].originCountry);
+
+    Serial.print("Distance: ");
+    Serial.print(aircraftList[i].distanceKm, 1);
+    Serial.println(" km");
 
     Serial.print("Altitude: ");
-    Serial.print(aircraft.altitudeFeet, 0);
+    Serial.print(aircraftList[i].altitudeFeet, 0);
     Serial.println(" ft");
 
     Serial.print("Speed: ");
-    Serial.print(aircraft.speedKnots, 0);
+    Serial.print(aircraftList[i].speedKnots, 0);
     Serial.println(" kt");
 
     Serial.print("Heading: ");
-    Serial.print(aircraft.headingDegrees, 0);
+    Serial.print(aircraftList[i].headingDegrees, 0);
     Serial.println(" deg");
 
     Serial.print("Vertical rate: ");
-    if (aircraft.verticalRate > 0) {
+
+    if (aircraftList[i].verticalRate > 0) {
         Serial.println("climbing");
-    } else if (aircraft.verticalRate < 0) {
+    }
+    else if (aircraftList[i].verticalRate < 0) {
         Serial.println("descending");
-    } else {
+    }
+    else {
         Serial.println("level");
     }
 }
