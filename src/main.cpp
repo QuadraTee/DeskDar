@@ -61,6 +61,7 @@ void loop() {
         );
 
         renderAircraftList(aircraftList, aircraftCount);
+        renderAsciiRadar(aircraftList, aircraftCount);
     }
 }
 
