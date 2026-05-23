@@ -1,5 +1,7 @@
 #pragma once
 
+
+
 struct Aircraft {
     String icao24;
     String callsign;
@@ -18,6 +20,10 @@ struct Aircraft {
     float verticalRate;
     float distanceKm;
     float bearingDegrees;
+
+    int radarX;
+    int radarY;
+
     String compassDirection;
 
     bool onGround;

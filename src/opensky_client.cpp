@@ -5,6 +5,14 @@
 
 #include "opensky_client.h"
 
+void calculateRadarPosition(
+    Aircraft& aircraft,
+    int centerX,
+    int centerY,
+    int radarRadius,
+    float maxRangeKm
+);
+
 float degreesToRadians(float degrees) {
     return degrees * PI / 180.0;
 }
@@ -43,6 +51,34 @@ float calculateBearingDegrees(float lat1, float lon1, float lat2, float lon2) {
     }
 
     return bearing;
+}
+
+void calculateRadarPosition(
+    Aircraft& aircraft,
+    int centerX,
+    int centerY,
+    int radarRadius,
+    float maxRangeKm
+) {
+    float clampedDistance = aircraft.distanceKm;
+
+    if (clampedDistance > maxRangeKm) {
+        clampedDistance = maxRangeKm;
+    }
+
+    float distanceRatio = clampedDistance / maxRangeKm;
+
+    float screenRadius = distanceRatio * radarRadius;
+
+    float bearingRad = degreesToRadians(
+        aircraft.bearingDegrees
+    );
+
+    aircraft.radarX =
+        centerX + sin(bearingRad) * screenRadius;
+
+    aircraft.radarY =
+        centerY - cos(bearingRad) * screenRadius;
 }
 
 String compassDirectionFromBearing(float bearing) {
@@ -166,6 +202,14 @@ int fetchNearbyAircraft(
 
         aircraft.compassDirection = compassDirectionFromBearing(
             aircraft.bearingDegrees
+        );
+
+        calculateRadarPosition(
+        aircraft,
+        120,
+        120,
+        110,
+        50.0
         );
 
         aircraftList[aircraftCount] = aircraft;

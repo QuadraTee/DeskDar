@@ -25,6 +25,11 @@ void renderAircraftSummary(const Aircraft& aircraft, int position) {
     Serial.print(aircraft.bearingDegrees, 0);
     Serial.println(" deg");
 
+    Serial.print("Radar XY: ");
+    Serial.print(aircraft.radarX);
+    Serial.print(", ");
+    Serial.println(aircraft.radarY);
+
     Serial.print("Altitude: ");
     Serial.print(aircraft.altitudeFeet, 0);
     Serial.println(" ft");
