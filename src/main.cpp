@@ -136,6 +136,39 @@ float calculateDistanceKm(float lat1, float lon1, float lat2, float lon2) {
 }
 
 
+float calculateBearingDegrees(float lat1, float lon1, float lat2, float lon2) {
+    float phi1 = degreesToRadians(lat1);
+    float phi2 = degreesToRadians(lat2);
+    float deltaLon = degreesToRadians(lon2 - lon1);
+
+    float y = sin(deltaLon) * cos(phi2);
+    float x =
+        cos(phi1) * sin(phi2) -
+        sin(phi1) * cos(phi2) * cos(deltaLon);
+
+    float bearing = atan2(y, x) * 180.0 / PI;
+
+    if (bearing < 0) {
+        bearing += 360.0;
+    }
+
+    return bearing;
+}
+
+String compassDirectionFromBearing(float bearing) {
+    const char* directions[] = {
+        "N", "NE", "E", "SE", "S", "SW", "W", "NW"
+    };
+
+    int index = round(bearing / 45.0);
+
+    if (index == 8) {
+        index = 0;
+    }
+
+    return String(directions[index]);
+}
+
 
 void fetchNearbyAircraft(float latitude, float longitude) {
 
@@ -232,6 +265,17 @@ void fetchNearbyAircraft(float latitude, float longitude) {
             aircraft.longitude
         );
 
+        aircraft.bearingDegrees = calculateBearingDegrees(
+        latitude,
+        longitude,
+        aircraft.latitude,
+        aircraft.longitude
+        );
+
+aircraft.compassDirection = compassDirectionFromBearing(
+    aircraft.bearingDegrees
+);
+
         if (aircraftCount < MAX_AIRCRAFT) {
             aircraftList[aircraftCount] = aircraft;
             aircraftCount++;
@@ -275,6 +319,12 @@ for (int i = 0; i < aircraftCount; i++) {
     Serial.print("Distance: ");
     Serial.print(aircraftList[i].distanceKm, 1);
     Serial.println(" km");
+
+    Serial.print("Direction: ");
+    Serial.print(aircraftList[i].compassDirection);
+    Serial.print(" / ");
+    Serial.print(aircraftList[i].bearingDegrees, 0);
+    Serial.println(" deg");
 
     Serial.print("Altitude: ");
     Serial.print(aircraftList[i].altitudeFeet, 0);

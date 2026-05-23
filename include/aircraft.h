@@ -17,6 +17,8 @@ struct Aircraft {
     float headingDegrees;
     float verticalRate;
     float distanceKm;
-    
+    float bearingDegrees;
+    String compassDirection;
+
     bool onGround;
 };
