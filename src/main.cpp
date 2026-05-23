@@ -21,7 +21,6 @@ float userLatitude = 0.0;
 float userLongitude = 0.0;
 bool locationReady = false;
 
-unsigned long lastRefreshTime = 0;
 
 void connectWiFi();
 
@@ -48,8 +47,11 @@ void setup() {
     );
 
     if (!locationReady) {
-        Serial.println("Could not fetch postcode location.");
-    }
+    Serial.println("Could not fetch postcode location.");
+}
+
+lastMetadataRefresh = millis();
+
 }
 
 void loop() {
@@ -59,12 +61,14 @@ void loop() {
     }
 
     unsigned long now = millis();
+    bool aircraftFetchRan = false;
 
     if (
         lastAircraftRefresh == 0 ||
         now - lastAircraftRefresh >= AIRCRAFT_REFRESH_MS
     ) {
         lastAircraftRefresh = now;
+        aircraftFetchRan = true;
 
         Aircraft aircraftList[MAX_AIRCRAFT];
 
@@ -81,7 +85,7 @@ void loop() {
     }
 
     if (
-        lastMetadataRefresh == 0 ||
+        !aircraftFetchRan &&
         now - lastMetadataRefresh >= METADATA_REFRESH_MS
     ) {
         lastMetadataRefresh = now;

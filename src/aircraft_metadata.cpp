@@ -1,4 +1,7 @@
 #include <Arduino.h>
+#include <WiFiClientSecure.h>
+#include <HTTPClient.h>
+#include <ArduinoJson.h>
 
 #include "aircraft_metadata.h"
 
@@ -59,8 +62,67 @@ void processMetadataQueue() {
 
     String icao24 = metadataQueue[0];
 
-    Serial.print("Metadata queued for later lookup: ");
+    Serial.print("Looking up metadata online for: ");
     Serial.println(icao24);
+
+    WiFiClientSecure client;
+    client.setInsecure();
+
+    HTTPClient https;
+    https.setTimeout(10000);
+    https.useHTTP10(true);
+
+    String url = "https://api.adsbdb.com/v0/aircraft/";
+    url += icao24;
+
+    if (!https.begin(client, url)) {
+        Serial.println("Metadata HTTPS begin failed");
+        return;
+    }
+
+    int httpCode = https.GET();
+
+    Serial.print("Metadata HTTP status: ");
+    Serial.println(httpCode);
+
+    if (httpCode == 200) {
+        String payload = https.getString();
+
+        JsonDocument doc;
+        DeserializationError error = deserializeJson(doc, payload);
+
+        if (!error) {
+            JsonObject data = doc["response"]["aircraft"];
+
+            String registration = data["registration"] | "Unknown";
+            String manufacturer = data["manufacturer"] | "";
+            String type = data["type"] | "";
+            String icaoType = data["icao_type"] | "Unknown";
+
+            String model = "Unknown";
+
+            if (manufacturer.length() > 0 && type.length() > 0) {
+                model = manufacturer + " " + type;
+            } else if (type.length() > 0) {
+                model = type;
+            }
+
+            Serial.println("Metadata found:");
+            Serial.print("Registration: ");
+            Serial.println(registration);
+            Serial.print("Model: ");
+            Serial.println(model);
+            Serial.print("Type: ");
+            Serial.println(icaoType);
+        } else {
+            Serial.print("Metadata JSON parse failed: ");
+            Serial.println(error.c_str());
+        }
+    } else {
+        Serial.println("Metadata lookup failed");
+    }
+
+    https.end();
 
     for (int i = 1; i < metadataQueueCount; i++) {
         metadataQueue[i - 1] = metadataQueue[i];
