@@ -69,7 +69,7 @@ void processMetadataQueue() {
     client.setInsecure();
 
     HTTPClient https;
-    https.setTimeout(10000);
+    https.setTimeout(15000);
     https.useHTTP10(true);
 
     String url = "https://api.adsbdb.com/v0/aircraft/";
@@ -118,8 +118,10 @@ void processMetadataQueue() {
             Serial.print("Metadata JSON parse failed: ");
             Serial.println(error.c_str());
         }
+    } else if (httpCode == 404) {
+        Serial.println("Metadata not found.");
     } else {
-        Serial.println("Metadata lookup failed");
+        Serial.println("Metadata lookup failed.");
     }
 
     https.end();
