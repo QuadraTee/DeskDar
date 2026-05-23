@@ -51,7 +51,11 @@ void saveMetadataToCache(
     const String& aircraftType
 ) {
     if (metadataCacheCount >= MAX_METADATA_CACHE) {
-        return;
+    for (int i = 1; i < MAX_METADATA_CACHE; i++) {
+        metadataCache[i - 1] = metadataCache[i];
+    }
+
+    metadataCacheCount = MAX_METADATA_CACHE - 1;
     }
 
     metadataCache[metadataCacheCount].icao24 = icao24;
@@ -60,6 +64,11 @@ void saveMetadataToCache(
     metadataCache[metadataCacheCount].aircraftType = aircraftType;
 
     metadataCacheCount++;
+
+    Serial.print("Cache usage: ");
+    Serial.print(metadataCacheCount);
+    Serial.print("/");
+    Serial.println(MAX_METADATA_CACHE);
 
     Serial.print("Metadata saved to cache for: ");
     Serial.println(icao24);

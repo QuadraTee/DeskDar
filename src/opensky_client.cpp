@@ -2,22 +2,9 @@
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
-#include "aircraft_metadata.h"
 
 #include "opensky_client.h"
-
-void calculateRadarPosition(
-    Aircraft& aircraft,
-    int centerX,
-    int centerY,
-    int radarRadius,
-    float maxRangeKm
-);
-
-void calculateHeadingVector(
-    Aircraft& aircraft,
-    int arrowLength
-);
+#include "aircraft_metadata.h"
 
 float degreesToRadians(float degrees) {
     return degrees * PI / 180.0;
@@ -59,6 +46,20 @@ float calculateBearingDegrees(float lat1, float lon1, float lat2, float lon2) {
     return bearing;
 }
 
+String compassDirectionFromBearing(float bearing) {
+    const char* directions[] = {
+        "N", "NE", "E", "SE", "S", "SW", "W", "NW"
+    };
+
+    int index = round(bearing / 45.0);
+
+    if (index == 8) {
+        index = 0;
+    }
+
+    return String(directions[index]);
+}
+
 void calculateRadarPosition(
     Aircraft& aircraft,
     int centerX,
@@ -73,46 +74,22 @@ void calculateRadarPosition(
     }
 
     float distanceRatio = clampedDistance / maxRangeKm;
-
     float screenRadius = distanceRatio * radarRadius;
 
-    float bearingRad = degreesToRadians(
-        aircraft.bearingDegrees
-    );
+    float bearingRad = degreesToRadians(aircraft.bearingDegrees);
 
-    aircraft.radarX =
-        centerX + sin(bearingRad) * screenRadius;
-
-    aircraft.radarY =
-        centerY - cos(bearingRad) * screenRadius;
+    aircraft.radarX = centerX + sin(bearingRad) * screenRadius;
+    aircraft.radarY = centerY - cos(bearingRad) * screenRadius;
 }
 
 void calculateHeadingVector(
     Aircraft& aircraft,
     int arrowLength
 ) {
-    float headingRad =
-        degreesToRadians(aircraft.headingDegrees);
+    float headingRad = degreesToRadians(aircraft.headingDegrees);
 
-    aircraft.headingX =
-        aircraft.radarX + sin(headingRad) * arrowLength;
-
-    aircraft.headingY =
-        aircraft.radarY - cos(headingRad) * arrowLength;
-}
-
-String compassDirectionFromBearing(float bearing) {
-    const char* directions[] = {
-        "N", "NE", "E", "SE", "S", "SW", "W", "NW"
-    };
-
-    int index = round(bearing / 45.0);
-
-    if (index == 8) {
-        index = 0;
-    }
-
-    return String(directions[index]);
+    aircraft.headingX = aircraft.radarX + sin(headingRad) * arrowLength;
+    aircraft.headingY = aircraft.radarY - cos(headingRad) * arrowLength;
 }
 
 int fetchNearbyAircraft(
@@ -152,25 +129,31 @@ int fetchNearbyAircraft(
     }
 
     if (accessToken.length() > 0) {
-    https.addHeader("Authorization", "Bearer " + accessToken);
-}
+        https.addHeader("Authorization", "Bearer " + accessToken);
+    }
 
     int httpCode = https.GET();
 
     Serial.print("OpenSky HTTP status: ");
     Serial.println(httpCode);
 
-if (httpCode == 429) {
-    Serial.println("OpenSky rate limit hit. Waiting before next request.");
-    https.end();
-    return 0;
-}
+    if (httpCode == 401) {
+        Serial.println("OpenSky token expired or unauthorized.");
+        https.end();
+        return -1;
+    }
 
-if (httpCode != 200) {
-    Serial.println("OpenSky request failed");
-    https.end();
-    return 0;
-}
+    if (httpCode == 429) {
+        Serial.println("OpenSky rate limit hit.");
+        https.end();
+        return 0;
+    }
+
+    if (httpCode != 200) {
+        Serial.println("OpenSky request failed");
+        https.end();
+        return 0;
+    }
 
     String payload = https.getString();
     https.end();
@@ -186,6 +169,11 @@ if (httpCode != 200) {
 
     JsonArray states = doc["states"];
 
+    if (states.isNull()) {
+        Serial.println("No aircraft states found");
+        return 0;
+    }
+
     Serial.println();
     Serial.print("Aircraft found: ");
     Serial.println(states.size());
@@ -197,11 +185,16 @@ if (httpCode != 200) {
             break;
         }
 
+        if (state[5].isNull() || state[6].isNull()) {
+            continue;
+        }
+
         Aircraft aircraft;
 
         aircraft.icao24 = state[0].as<String>();
         aircraft.callsign = state[1].as<String>();
         aircraft.originCountry = state[2].as<String>();
+
         enrichAircraftMetadata(aircraft);
 
         aircraft.longitude = state[5] | 0.0;
@@ -237,16 +230,16 @@ if (httpCode != 200) {
         );
 
         calculateRadarPosition(
-        aircraft,
-        120,
-        120,
-        110,
-        50.0
+            aircraft,
+            120,
+            120,
+            110,
+            50.0
         );
 
         calculateHeadingVector(
-        aircraft,
-        8
+            aircraft,
+            8
         );
 
         aircraftList[aircraftCount] = aircraft;

@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <WiFi.h>
+#include <WebServer.h>
 
 #include "aircraft.h"
 #include "opensky_client.h"
@@ -8,6 +9,24 @@
 #include "aircraft_metadata.h"
 #include "opensky_auth.h"
 #include "secrets.h"
+
+WebServer server(80);
+
+String debugLog = "";
+const int MAX_DEBUG_LOG_LENGTH = 4000;
+
+void addDebugLog(const String& message) {
+    Serial.println(message);
+
+    debugLog += message;
+    debugLog += "\n";
+
+    if (debugLog.length() > MAX_DEBUG_LOG_LENGTH) {
+        debugLog = debugLog.substring(
+            debugLog.length() - MAX_DEBUG_LOG_LENGTH
+        );
+    }
+}
 
 const unsigned long AIRCRAFT_REFRESH_MS = 60000;
 const unsigned long METADATA_REFRESH_MS = 20000;
@@ -29,11 +48,53 @@ void connectWiFi();
 void metadataTask(void* parameter) {
     metadataTaskRunning = true;
 
+    addDebugLog("Metadata task started");
     processMetadataQueue();
+    addDebugLog("Metadata task finished");
 
     metadataTaskRunning = false;
 
     vTaskDelete(NULL);
+}
+
+void handleDebugPage() {
+    String html = "";
+
+    html += "<!DOCTYPE html><html><head>";
+    html += "<meta http-equiv='refresh' content='5'>";
+    html += "<title>DeskDar Debug</title>";
+    html += "</head><body>";
+    html += "<h1>DeskDar Debug</h1>";
+
+    html += "<p><strong>WiFi:</strong> Connected</p>";
+    html += "<p><strong>IP:</strong> ";
+    html += WiFi.localIP().toString();
+    html += "</p>";
+
+    html += "<p><strong>Free heap:</strong> ";
+    html += String(ESP.getFreeHeap());
+    html += " bytes</p>";
+
+    html += "<p><strong>Location ready:</strong> ";
+    html += locationReady ? "Yes" : "No";
+    html += "</p>";
+
+    html += "<p><strong>Latitude:</strong> ";
+    html += String(userLatitude, 6);
+    html += "</p>";
+
+    html += "<p><strong>Longitude:</strong> ";
+    html += String(userLongitude, 6);
+    html += "</p>";
+
+    html += "<h2>Logs</h2>";
+    html += "<pre>";
+    html += debugLog;
+    html += "</pre>";
+
+    html += "</body></html>";
+
+    server.send(200, "text/html", html);
 }
 
 void setup() {
@@ -41,12 +102,30 @@ void setup() {
     delay(1000);
 
     Serial.println();
-    Serial.println("DeskDar starting...");
+    addDebugLog("DeskDar starting...");
 
     connectWiFi();
 
+    server.on("/", handleDebugPage);
+    server.on("/debug", handleDebugPage);
+
+    server.on("/favicon.ico", []() {
+        server.send(204);
+    });
+
+    server.onNotFound([]() {
+        server.send(404, "text/plain", "Not found");
+    });
+
+    server.begin();
+
+    addDebugLog("Debug web server started");
+    addDebugLog("Open: http://" + WiFi.localIP().toString());
+
     if (!fetchOpenSkyToken(openSkyToken)) {
-        Serial.println("Could not authenticate with OpenSky.");
+        addDebugLog("Could not authenticate with OpenSky.");
+    } else {
+        addDebugLog("OpenSky token received.");
     }
 
     locationReady = fetchPostcode(
@@ -56,13 +135,19 @@ void setup() {
     );
 
     if (!locationReady) {
-        Serial.println("Could not fetch postcode location.");
+        addDebugLog("Could not fetch postcode location.");
+    } else {
+        addDebugLog("Postcode location ready.");
+        addDebugLog("Latitude: " + String(userLatitude, 6));
+        addDebugLog("Longitude: " + String(userLongitude, 6));
     }
 
     lastMetadataRefresh = millis();
 }
 
 void loop() {
+    server.handleClient();
+
     if (!locationReady) {
         delay(5000);
         return;
@@ -86,6 +171,8 @@ void loop() {
     if (aircraftDue) {
         lastAircraftRefresh = now;
 
+        addDebugLog("Fetching aircraft from OpenSky...");
+
         Aircraft aircraftList[MAX_AIRCRAFT];
 
         int aircraftCount = fetchNearbyAircraft(
@@ -95,6 +182,20 @@ void loop() {
             MAX_AIRCRAFT,
             openSkyToken
         );
+
+        if (aircraftCount == -1) {
+            addDebugLog("OpenSky token expired. Refreshing token...");
+
+            if (fetchOpenSkyToken(openSkyToken)) {
+                addDebugLog("OpenSky token refreshed.");
+            } else {
+                addDebugLog("OpenSky token refresh failed.");
+            }
+
+            return;
+        }
+
+        addDebugLog("Aircraft fetched: " + String(aircraftCount));
 
         renderAircraftList(aircraftList, aircraftCount);
         renderAsciiRadar(aircraftList, aircraftCount);
@@ -106,6 +207,8 @@ void loop() {
         enoughGapBeforeAircraft
     ) {
         lastMetadataRefresh = now;
+
+        addDebugLog("Starting metadata lookup task");
 
         xTaskCreatePinnedToCore(
             metadataTask,
@@ -120,7 +223,7 @@ void loop() {
 }
 
 void connectWiFi() {
-    Serial.println("Connecting to WiFi...");
+    addDebugLog("Connecting to WiFi...");
 
     WiFi.mode(WIFI_STA);
     WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
@@ -130,8 +233,6 @@ void connectWiFi() {
         Serial.print(".");
     }
 
-    Serial.println();
-    Serial.println("WiFi connected!");
-    Serial.print("IP address: ");
-    Serial.println(WiFi.localIP());
+    addDebugLog("WiFi connected!");
+    addDebugLog("IP address: " + WiFi.localIP().toString());
 }
