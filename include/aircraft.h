@@ -16,6 +16,7 @@ struct Aircraft {
 
     float headingDegrees;
     float verticalRate;
-
+    float distanceKm;
+    
     bool onGround;
 };

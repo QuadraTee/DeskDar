@@ -112,6 +112,31 @@ bool fetchPostcode(float& latitude, float& longitude) {
     return true;
 }
 
+
+float degreesToRadians(float degrees) {
+    return degrees * PI / 180.0;
+}
+
+float calculateDistanceKm(float lat1, float lon1, float lat2, float lon2) {
+    const float earthRadiusKm = 6371.0;
+
+    float dLat = degreesToRadians(lat2 - lat1);
+    float dLon = degreesToRadians(lon2 - lon1);
+
+    float a =
+        sin(dLat / 2) * sin(dLat / 2) +
+        cos(degreesToRadians(lat1)) *
+        cos(degreesToRadians(lat2)) *
+        sin(dLon / 2) * sin(dLon / 2);
+
+    float c = 2 * atan2(sqrt(a), sqrt(1 - a));
+
+    return earthRadiusKm * c;
+}
+
+
+
+
 void fetchNearbyAircraft(float latitude, float longitude) {
     WiFiClientSecure client;
     client.setInsecure();
@@ -192,9 +217,20 @@ for (JsonArray state : states) {
     aircraft.headingDegrees = state[10] | 0.0;
     aircraft.verticalRate = state[11] | 0.0;
 
+    aircraft.distanceKm = calculateDistanceKm(
+    latitude,
+    longitude,
+    aircraft.latitude,
+    aircraft.longitude
+   );
+
     Serial.println("--------------------");
     Serial.print("Flight: ");
     Serial.println(aircraft.callsign);
+
+    Serial.print("Distance: ");
+    Serial.print(aircraft.distanceKm, 1);
+    Serial.println(" km");
 
     Serial.print("Country: ");
     Serial.println(aircraft.originCountry);
