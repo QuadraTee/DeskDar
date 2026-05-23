@@ -6,9 +6,20 @@
 #include "aircraft_metadata.h"
 
 const int MAX_METADATA_QUEUE = 10;
+const int MAX_METADATA_CACHE = 30;
 
 String metadataQueue[MAX_METADATA_QUEUE];
 int metadataQueueCount = 0;
+
+struct MetadataCacheEntry {
+    String icao24;
+    String registration;
+    String aircraftModel;
+    String aircraftType;
+};
+
+MetadataCacheEntry metadataCache[MAX_METADATA_CACHE];
+int metadataCacheCount = 0;
 
 bool isInQueue(const String& icao24) {
     for (int i = 0; i < metadataQueueCount; i++) {
@@ -18,6 +29,40 @@ bool isInQueue(const String& icao24) {
     }
 
     return false;
+}
+
+bool findCachedMetadata(Aircraft& aircraft) {
+    for (int i = 0; i < metadataCacheCount; i++) {
+        if (metadataCache[i].icao24 == aircraft.icao24) {
+            aircraft.registration = metadataCache[i].registration;
+            aircraft.aircraftModel = metadataCache[i].aircraftModel;
+            aircraft.aircraftType = metadataCache[i].aircraftType;
+            return true;
+        }
+    }
+
+    return false;
+}
+
+void saveMetadataToCache(
+    const String& icao24,
+    const String& registration,
+    const String& aircraftModel,
+    const String& aircraftType
+) {
+    if (metadataCacheCount >= MAX_METADATA_CACHE) {
+        return;
+    }
+
+    metadataCache[metadataCacheCount].icao24 = icao24;
+    metadataCache[metadataCacheCount].registration = registration;
+    metadataCache[metadataCacheCount].aircraftModel = aircraftModel;
+    metadataCache[metadataCacheCount].aircraftType = aircraftType;
+
+    metadataCacheCount++;
+
+    Serial.print("Metadata saved to cache for: ");
+    Serial.println(icao24);
 }
 
 void queueMetadataLookup(const String& icao24) {
@@ -49,6 +94,10 @@ void enrichAircraftMetadata(Aircraft& aircraft) {
         aircraft.registration = "N844MC";
         aircraft.aircraftModel = "Boeing 787-9 Dreamliner";
         aircraft.aircraftType = "Wide-body Airliner";
+        return;
+    }
+
+    if (findCachedMetadata(aircraft)) {
         return;
     }
 
@@ -114,6 +163,13 @@ void processMetadataQueue() {
             Serial.println(model);
             Serial.print("Type: ");
             Serial.println(icaoType);
+
+            saveMetadataToCache(
+                icao24,
+                registration,
+                model,
+                icaoType
+            );
         } else {
             Serial.print("Metadata JSON parse failed: ");
             Serial.println(error.c_str());
