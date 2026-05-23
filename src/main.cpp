@@ -10,7 +10,7 @@
 #include "secrets.h"
 
 const unsigned long AIRCRAFT_REFRESH_MS = 60000;
-const unsigned long METADATA_REFRESH_MS = 75000;
+const unsigned long METADATA_REFRESH_MS = 20000;
 const unsigned long MIN_GAP_BETWEEN_NETWORK_TASKS_MS = 15000;
 
 unsigned long lastAircraftRefresh = 0;
@@ -74,6 +74,12 @@ void loop() {
         lastAircraftRefresh == 0 ||
         now - lastAircraftRefresh >= AIRCRAFT_REFRESH_MS;
 
+    bool enoughGapAfterAircraft =
+        now - lastAircraftRefresh >= MIN_GAP_BETWEEN_NETWORK_TASKS_MS;
+
+    bool enoughGapBeforeAircraft =
+        AIRCRAFT_REFRESH_MS - (now - lastAircraftRefresh) >= MIN_GAP_BETWEEN_NETWORK_TASKS_MS;
+
     bool metadataDue =
         now - lastMetadataRefresh >= METADATA_REFRESH_MS;
 
@@ -96,7 +102,8 @@ void loop() {
     else if (
         !metadataTaskRunning &&
         metadataDue &&
-        now - lastAircraftRefresh >= MIN_GAP_BETWEEN_NETWORK_TASKS_MS
+        enoughGapAfterAircraft &&
+        enoughGapBeforeAircraft
     ) {
         lastMetadataRefresh = now;
 
