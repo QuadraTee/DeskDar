@@ -8,5 +8,6 @@ int fetchNearbyAircraft(
     float latitude,
     float longitude,
     Aircraft aircraftList[],
-    int maxAircraft
+    int maxAircraft,
+    const String& accessToken
 );

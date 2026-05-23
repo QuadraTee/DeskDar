@@ -119,7 +119,8 @@ int fetchNearbyAircraft(
     float latitude,
     float longitude,
     Aircraft aircraftList[],
-    int maxAircraft
+    int maxAircraft,
+    const String& accessToken
 ) {
     WiFiClientSecure client;
     client.setInsecure();
@@ -150,16 +151,26 @@ int fetchNearbyAircraft(
         return 0;
     }
 
+    if (accessToken.length() > 0) {
+    https.addHeader("Authorization", "Bearer " + accessToken);
+}
+
     int httpCode = https.GET();
 
     Serial.print("OpenSky HTTP status: ");
     Serial.println(httpCode);
 
-    if (httpCode != 200) {
-        Serial.println("OpenSky request failed");
-        https.end();
-        return 0;
-    }
+if (httpCode == 429) {
+    Serial.println("OpenSky rate limit hit. Waiting before next request.");
+    https.end();
+    return 0;
+}
+
+if (httpCode != 200) {
+    Serial.println("OpenSky request failed");
+    https.end();
+    return 0;
+}
 
     String payload = https.getString();
     https.end();

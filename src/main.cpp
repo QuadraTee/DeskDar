@@ -5,12 +5,17 @@
 #include "opensky_client.h"
 #include "postcode_client.h"
 #include "display.h"
+#include "aircraft_metadata.h"
+#include "opensky_auth.h"
+#include "secrets.h"
 
-const char* WIFI_SSID = "Vodafone3390-2.4G";
-const char* WIFI_PASSWORD = "xZcdzCd6fRtcFTaK";
-const char* POSTCODE = "WV95BL";
 
-const unsigned long REFRESH_INTERVAL_MS = 15000;
+
+const unsigned long AIRCRAFT_REFRESH_MS = 60000;
+const unsigned long METADATA_REFRESH_MS = 180000;
+
+unsigned long lastAircraftRefresh = 0;
+unsigned long lastMetadataRefresh = 0;
 
 float userLatitude = 0.0;
 float userLongitude = 0.0;
@@ -20,6 +25,8 @@ unsigned long lastRefreshTime = 0;
 
 void connectWiFi();
 
+String openSkyToken;
+
 void setup() {
     Serial.begin(115200);
     delay(1000);
@@ -28,6 +35,11 @@ void setup() {
     Serial.println("DeskDar starting...");
 
     connectWiFi();
+
+
+    if (!fetchOpenSkyToken(openSkyToken)) {
+        Serial.println("Could not authenticate with OpenSky.");
+    }
 
     locationReady = fetchPostcode(
         POSTCODE,
@@ -48,8 +60,11 @@ void loop() {
 
     unsigned long now = millis();
 
-    if (lastRefreshTime == 0 || now - lastRefreshTime >= REFRESH_INTERVAL_MS) {
-        lastRefreshTime = now;
+    if (
+        lastAircraftRefresh == 0 ||
+        now - lastAircraftRefresh >= AIRCRAFT_REFRESH_MS
+    ) {
+        lastAircraftRefresh = now;
 
         Aircraft aircraftList[MAX_AIRCRAFT];
 
@@ -57,11 +72,21 @@ void loop() {
             userLatitude,
             userLongitude,
             aircraftList,
-            MAX_AIRCRAFT
+            MAX_AIRCRAFT,
+            openSkyToken
         );
 
         renderAircraftList(aircraftList, aircraftCount);
         renderAsciiRadar(aircraftList, aircraftCount);
+    }
+
+    if (
+        lastMetadataRefresh == 0 ||
+        now - lastMetadataRefresh >= METADATA_REFRESH_MS
+    ) {
+        lastMetadataRefresh = now;
+
+        processMetadataQueue();
     }
 }
 

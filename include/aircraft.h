@@ -2,8 +2,6 @@
 
 #include <Arduino.h>
 
-
-
 struct Aircraft {
     String icao24;
     String callsign;
