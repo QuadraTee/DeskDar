@@ -267,6 +267,18 @@ int fetchNearbyAircraft(
             8
         );
 
+        aircraft.predictedRadarX = aircraft.radarX;
+        aircraft.predictedRadarY = aircraft.radarY;
+        aircraft.predictedHeadingX = aircraft.headingX;
+        aircraft.predictedHeadingY = aircraft.headingY;
+        aircraft.lastSeenMillis = millis();
+        aircraft.trailCount = 1;
+
+        for (int t = 0; t < AIRCRAFT_TRAIL_LENGTH; t++) {
+            aircraft.trailX[t] = aircraft.radarX;
+            aircraft.trailY[t] = aircraft.radarY;
+        }
+
         aircraftList[aircraftCount] = aircraft;
         aircraftCount++;
     }

@@ -7,6 +7,7 @@
 #include "opensky_client.h"
 #include "postcode_client.h"
 #include "display.h"
+#include "radar_renderer.h"
 #include "aircraft_metadata.h"
 #include "opensky_auth.h"
 #include "config_manager.h"
@@ -22,9 +23,9 @@ const char* NTP_SERVER = "pool.ntp.org";
 const long GMT_OFFSET_SECONDS = 0;
 const int DAYLIGHT_OFFSET_SECONDS = 3600;
 
-const unsigned long AIRCRAFT_REFRESH_MS = 60000;
-const unsigned long METADATA_REFRESH_MS = 20000;
-const unsigned long MIN_GAP_BETWEEN_NETWORK_TASKS_MS = 15000;
+const unsigned long AIRCRAFT_REFRESH_MS = 30000;
+const unsigned long METADATA_REFRESH_MS = 5000;
+const unsigned long MIN_GAP_BETWEEN_NETWORK_TASKS_MS = 8000;
 
 unsigned long lastAircraftRefresh = 0;
 unsigned long lastMetadataRefresh = 0;
@@ -36,6 +37,13 @@ bool locationReady = false;
 String openSkyToken;
 
 bool metadataTaskRunning = false;
+
+const unsigned long FRAME_INTERVAL_MS = 33;
+const unsigned long AIRCRAFT_FADE_MS = 60000;
+unsigned long lastFrameTime = 0;
+
+Aircraft currentAircraftList[MAX_AIRCRAFT];
+int currentAircraftCount = 0;
 
 void connectWiFi();
 
@@ -113,9 +121,35 @@ void addAircraftToDebugLog(const Aircraft aircraftList[], int aircraftCount) {
         line += String(aircraftList[i].speedKnots, 0);
         line += " kt | Heading ";
         line += String(aircraftList[i].headingDegrees, 0);
-        line += " deg";
+        line += " deg | Fade ";
+        line += String(getAircraftFadePercent(aircraftList[i], AIRCRAFT_FADE_MS));
+        line += "%";
 
         addDebugLog(line);
+    }
+}
+
+void updatePredictedAircraftPositions() {
+    for (int i = 0; i < currentAircraftCount; i++) {
+        float predictedDistanceKm = 0.0;
+        float predictedBearingDegrees = 0.0;
+
+        predictAircraftRadarPosition(
+            currentAircraftList[i],
+            userLatitude,
+            userLongitude,
+            getSearchRadiusKm(),
+            120,
+            120,
+            110,
+            8,
+            currentAircraftList[i].predictedRadarX,
+            currentAircraftList[i].predictedRadarY,
+            currentAircraftList[i].predictedHeadingX,
+            currentAircraftList[i].predictedHeadingY,
+            predictedDistanceKm,
+            predictedBearingDegrees
+        );
     }
 }
 
@@ -159,6 +193,14 @@ void handleDebugPage() {
     html += "<p><strong>Longitude:</strong> ";
     html += String(userLongitude, 6);
     html += "</p>";
+
+    html += "<p><strong>Current aircraft:</strong> ";
+    html += String(currentAircraftCount);
+    html += "</p>";
+
+    html += "<p><strong>Radar sweep angle:</strong> ";
+    html += String(getRadarSweepAngleDegrees(), 0);
+    html += " deg</p>";
 
     html += "<h2>Radar Range</h2>";
     html += "<input type='range' min='5' max='100' value='";
@@ -349,12 +391,10 @@ void loop() {
 
         addDebugLog("Fetching aircraft from OpenSky...");
 
-        Aircraft aircraftList[MAX_AIRCRAFT];
-
         int aircraftCount = fetchNearbyAircraft(
             userLatitude,
             userLongitude,
-            aircraftList,
+            currentAircraftList,
             MAX_AIRCRAFT,
             openSkyToken
         );
@@ -376,11 +416,14 @@ void loop() {
             return;
         }
 
-        addDebugLog("Aircraft fetched: " + String(aircraftCount));
-        addAircraftToDebugLog(aircraftList, aircraftCount);
+        currentAircraftCount = aircraftCount;
 
-        renderAircraftList(aircraftList, aircraftCount);
-        renderAsciiRadar(aircraftList, aircraftCount);
+        addDebugLog("Aircraft fetched: " + String(currentAircraftCount));
+        addAircraftToDebugLog(currentAircraftList, currentAircraftCount);
+
+        renderAircraftList(currentAircraftList, currentAircraftCount);
+        renderAsciiRadar(currentAircraftList, currentAircraftCount);
+        renderRadarFrame(currentAircraftList, currentAircraftCount);
     }
     else if (
         !metadataTaskRunning &&
@@ -401,6 +444,12 @@ void loop() {
             NULL,
             0
         );
+    }
+
+    if (now - lastFrameTime >= FRAME_INTERVAL_MS) {
+        lastFrameTime = now;
+        updateRadarSweep(now);
+        updatePredictedAircraftPositions();
     }
 }
 

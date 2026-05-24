@@ -2,6 +2,8 @@
 
 #include <Arduino.h>
 
+const int AIRCRAFT_TRAIL_LENGTH = 6;
+
 struct Aircraft {
     String icao24;
     String callsign;
@@ -29,6 +31,17 @@ struct Aircraft {
 
     int headingX;
     int headingY;
+
+    int predictedRadarX;
+    int predictedRadarY;
+    int predictedHeadingX;
+    int predictedHeadingY;
+
+    int trailX[AIRCRAFT_TRAIL_LENGTH];
+    int trailY[AIRCRAFT_TRAIL_LENGTH];
+    int trailCount;
+
+    unsigned long lastSeenMillis;
 
     String compassDirection;
 

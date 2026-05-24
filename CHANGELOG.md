@@ -1,5 +1,17 @@
 # DeskDar Development Changelog
 
+## v0.7-renderer-prep
+- Decreased opensky API timing to once every 30s 
+- Decreased time between each ABSDBD API call
+- Added radar renderer abstraction layer for future TFT display work.
+- Added aircraft timestamps for fade, stale-state and prediction support.
+- Added predicted radar coordinate helpers using speed and heading dead reckoning.
+- Added radar sweep state and frame timing scaffold.
+- Added lightweight trail fields to aircraft records for future persistence effects.
+- Added current aircraft state storage for future display-frame rendering.
+
+---
+
 ## Initial Aircraft Tracking
 - Added OpenSky aircraft position fetching
 - Implemented nearby aircraft filtering using postcode coordinates
