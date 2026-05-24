@@ -2,11 +2,14 @@
 #include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 #include <ArduinoJson.h>
-
 #include "opensky_auth.h"
-#include "secrets.h"
 
-bool fetchOpenSkyToken(String& accessToken) {
+
+bool fetchOpenSkyToken(
+    const String& clientId,
+    const String& clientSecret,
+    String& accessToken
+    ) {
     WiFiClientSecure client;
     client.setInsecure();
 
@@ -25,9 +28,9 @@ bool fetchOpenSkyToken(String& accessToken) {
 
     String body = "grant_type=client_credentials";
     body += "&client_id=";
-    body += OPENSKY_CLIENT_ID;
+    body += clientId;
     body += "&client_secret=";
-    body += OPENSKY_CLIENT_SECRET;
+    body += clientSecret;
 
     Serial.println();
     Serial.println("Requesting OpenSky access token...");

@@ -9,7 +9,6 @@
 #include "display.h"
 #include "aircraft_metadata.h"
 #include "opensky_auth.h"
-#include "secrets.h"
 #include "config_manager.h"
 #include "setup_portal.h"
 
@@ -260,10 +259,14 @@ void setup() {
     addDebugLog("Debug web server started");
     addDebugLog("Open: http://" + WiFi.localIP().toString());
 
-    if (!fetchOpenSkyToken(openSkyToken)) {
-        addDebugLog("Could not authenticate with OpenSky.");
+   if (!fetchOpenSkyToken(
+    config.openSkyClientId,
+    config.openSkyClientSecret,
+    openSkyToken
+    )) {
+    addDebugLog("Could not authenticate with OpenSky.");
     } else {
-        addDebugLog("OpenSky token received.");
+    addDebugLog("OpenSky token received.");
     }
 
     locationReady = fetchPostcode(
@@ -324,11 +327,16 @@ void loop() {
         if (aircraftCount == -1) {
             addDebugLog("OpenSky token expired. Refreshing token...");
 
-            if (fetchOpenSkyToken(openSkyToken)) {
-                addDebugLog("OpenSky token refreshed.");
-            } else {
-                addDebugLog("OpenSky token refresh failed.");
-            }
+            if (!fetchOpenSkyToken(
+            config.openSkyClientId,
+            config.openSkyClientSecret,
+            openSkyToken
+            )) {
+
+    addDebugLog("Could not authenticate with OpenSky.");
+} else {
+    addDebugLog("OpenSky token received.");
+}
 
             return;
         }
