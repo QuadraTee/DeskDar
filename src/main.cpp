@@ -10,7 +10,10 @@
 #include "aircraft_metadata.h"
 #include "opensky_auth.h"
 #include "secrets.h"
+#include "config_manager.h"
+#include "setup_portal.h"
 
+DeskDarConfig config;
 WebServer server(80);
 
 String debugLog = "";
@@ -230,6 +233,11 @@ void setup() {
 
     Serial.println();
 
+    if (!loadConfig(config)) {
+    Serial.println("No saved config found.");
+    startSetupPortal();
+    }
+
     connectWiFi();
     setupTime();
 
@@ -259,7 +267,7 @@ void setup() {
     }
 
     locationReady = fetchPostcode(
-        POSTCODE,
+        config.postcode.c_str(),
         userLatitude,
         userLongitude
     );
@@ -357,7 +365,10 @@ void connectWiFi() {
     Serial.println("Connecting to WiFi...");
 
     WiFi.mode(WIFI_STA);
-    WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
+    WiFi.begin(
+    config.wifiSsid.c_str(),
+    config.wifiPassword.c_str()
+    );
 
     while (WiFi.status() != WL_CONNECTED) {
         delay(500);
