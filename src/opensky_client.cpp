@@ -6,6 +6,8 @@
 #include "opensky_client.h"
 #include "aircraft_metadata.h"
 
+const float SEARCH_RADIUS_KM = 25.0;
+
 float degreesToRadians(float degrees) {
     return degrees * PI / 180.0;
 }
@@ -106,12 +108,15 @@ int fetchNearbyAircraft(
     https.setTimeout(20000);
     https.useHTTP10(true);
 
-    float boxSize = 0.25;
+    float latOffset = SEARCH_RADIUS_KM / 111.0;
+    float lonOffset = SEARCH_RADIUS_KM / (
+        111.0 * cos(degreesToRadians(latitude))
+    );
 
-    float lamin = latitude - boxSize;
-    float lamax = latitude + boxSize;
-    float lomin = longitude - boxSize;
-    float lomax = longitude + boxSize;
+    float lamin = latitude - latOffset;
+    float lamax = latitude + latOffset;
+    float lomin = longitude - lonOffset;
+    float lomax = longitude + lonOffset;
 
     String url = "https://opensky-network.org/api/states/all?";
     url += "lamin=" + String(lamin, 6);
@@ -175,7 +180,7 @@ int fetchNearbyAircraft(
     }
 
     Serial.println();
-    Serial.print("Aircraft found: ");
+    Serial.print("Aircraft returned by OpenSky: ");
     Serial.println(states.size());
 
     int aircraftCount = 0;
@@ -218,6 +223,10 @@ int fetchNearbyAircraft(
             aircraft.longitude
         );
 
+        if (aircraft.distanceKm > SEARCH_RADIUS_KM) {
+            continue;
+        }
+
         aircraft.bearingDegrees = calculateBearingDegrees(
             latitude,
             longitude,
@@ -234,7 +243,7 @@ int fetchNearbyAircraft(
             120,
             120,
             110,
-            50.0
+            SEARCH_RADIUS_KM
         );
 
         calculateHeadingVector(
@@ -255,6 +264,11 @@ int fetchNearbyAircraft(
             }
         }
     }
+
+    Serial.print("Aircraft within ");
+    Serial.print(SEARCH_RADIUS_KM, 0);
+    Serial.print(" km radius: ");
+    Serial.println(aircraftCount);
 
     return aircraftCount;
 }
