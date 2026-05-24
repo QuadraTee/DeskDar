@@ -2,7 +2,12 @@
 
 #include "aircraft.h"
 
-const int MAX_AIRCRAFT = 20;
+const int MAX_AIRCRAFT = 25;
+
+extern float searchRadiusKm;
+
+void setSearchRadiusKm(float radiusKm);
+float getSearchRadiusKm();
 
 int fetchNearbyAircraft(
     float latitude,

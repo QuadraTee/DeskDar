@@ -6,7 +6,23 @@
 #include "opensky_client.h"
 #include "aircraft_metadata.h"
 
-const float SEARCH_RADIUS_KM = 25.0;
+float searchRadiusKm = 25.0;
+
+void setSearchRadiusKm(float radiusKm) {
+    if (radiusKm < 5.0) {
+        radiusKm = 5.0;
+    }
+
+    if (radiusKm > 100.0) {
+        radiusKm = 100.0;
+    }
+
+    searchRadiusKm = radiusKm;
+}
+
+float getSearchRadiusKm() {
+    return searchRadiusKm;
+}
 
 float degreesToRadians(float degrees) {
     return degrees * PI / 180.0;
@@ -108,8 +124,8 @@ int fetchNearbyAircraft(
     https.setTimeout(20000);
     https.useHTTP10(true);
 
-    float latOffset = SEARCH_RADIUS_KM / 111.0;
-    float lonOffset = SEARCH_RADIUS_KM / (
+    float latOffset = searchRadiusKm / 111.0;
+    float lonOffset = searchRadiusKm / (
         111.0 * cos(degreesToRadians(latitude))
     );
 
@@ -223,7 +239,7 @@ int fetchNearbyAircraft(
             aircraft.longitude
         );
 
-        if (aircraft.distanceKm > SEARCH_RADIUS_KM) {
+        if (aircraft.distanceKm > searchRadiusKm) {
             continue;
         }
 
@@ -243,7 +259,7 @@ int fetchNearbyAircraft(
             120,
             120,
             110,
-            SEARCH_RADIUS_KM
+            searchRadiusKm
         );
 
         calculateHeadingVector(
@@ -266,7 +282,7 @@ int fetchNearbyAircraft(
     }
 
     Serial.print("Aircraft within ");
-    Serial.print(SEARCH_RADIUS_KM, 0);
+    Serial.print(getSearchRadiusKm(), 0);
     Serial.print(" km radius: ");
     Serial.println(aircraftCount);
 

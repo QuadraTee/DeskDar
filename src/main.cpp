@@ -160,6 +160,26 @@ void handleDebugPage() {
     html += String(userLongitude, 6);
     html += "</p>";
 
+    html += "<h2>Radar Range</h2>";
+    html += "<input type='range' min='5' max='100' value='";
+    html += String(getSearchRadiusKm(), 0);
+    html += "' id='radiusSlider' oninput='updateRadius(this.value)'> ";
+
+    html += "<strong><span id='radiusValue'>";
+    html += String(getSearchRadiusKm(), 0);
+    html += "</span> km</strong>";
+
+    html += R"rawliteral(
+<script>
+function updateRadius(value) {
+    document.getElementById('radiusValue').innerText = value;
+
+    fetch('/set-radius?value=' + value)
+        .catch(error => console.log('Radius update failed', error));
+}
+</script>
+)rawliteral";
+
     html += R"rawliteral(
 <h2>Logs</h2>
 
@@ -214,7 +234,6 @@ async function updateLogs() {
 setInterval(updateLogs, 3000);
 updateLogs();
 </script>
-
 )rawliteral";
 
     html += "</body></html>";
@@ -224,6 +243,21 @@ updateLogs();
 
 void handleLogs() {
     server.send(200, "text/plain", debugLog);
+}
+
+void handleSetRadius() {
+    if (!server.hasArg("value")) {
+        server.send(400, "text/plain", "Missing value");
+        return;
+    }
+
+    float radius = server.arg("value").toFloat();
+
+    setSearchRadiusKm(radius);
+
+    addDebugLog("Radar range changed to " + String(getSearchRadiusKm(), 0) + " km");
+
+    server.send(200, "text/plain", String(getSearchRadiusKm(), 0));
 }
 
 void setup() {
@@ -245,6 +279,7 @@ void setup() {
     server.on("/", handleDebugPage);
     server.on("/debug", handleDebugPage);
     server.on("/logs", handleLogs);
+    server.on("/set-radius", handleSetRadius);
 
     server.on("/favicon.ico", []() {
         server.send(204);
