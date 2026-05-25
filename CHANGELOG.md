@@ -1,3 +1,17 @@
+## v0.8-dashboard-settings
+- Split first-boot onboarding into two stages:
+  - captive portal now collects WiFi only
+  - main dashboard collects postcode and OpenSky credentials after joining home WiFi
+- Promoted `/` to the main DeskDar dashboard.
+- Kept `/debug` as an alias for the dashboard.
+- Added navigation tabs for Dashboard, Logs, Settings, Aircraft, and System.
+- Added styled web dashboard layout.
+- Added Settings page for postcode and OpenSky credential updates.
+- Added reset/setup action to restart into WiFi setup mode.
+- Added Aircraft page with current aircraft summaries.
+- Added System page with firmware, memory, and config status.
+- Added WiFi connection timeout fallback to setup portal.
+
 # DeskDar Development Changelog
 
 ## v0.7-renderer-prep

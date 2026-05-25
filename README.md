@@ -236,7 +236,7 @@ The dashboard displays:
 Current stable milestone:
 
 ```text
-v0.7-stable
+v0.8-stable
 ```
 
 ---

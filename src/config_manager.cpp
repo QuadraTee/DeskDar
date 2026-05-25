@@ -3,6 +3,21 @@
 
 Preferences preferences;
 
+bool hasWiFiConfig(const DeskDarConfig& config) {
+    return (
+        config.wifiSsid.length() > 0 &&
+        config.wifiPassword.length() > 0
+    );
+}
+
+bool hasAppConfig(const DeskDarConfig& config) {
+    return (
+        config.postcode.length() > 0 &&
+        config.openSkyClientId.length() > 0 &&
+        config.openSkyClientSecret.length() > 0
+    );
+}
+
 bool loadConfig(DeskDarConfig& config) {
     preferences.begin("deskdar", true);
 
@@ -14,13 +29,7 @@ bool loadConfig(DeskDarConfig& config) {
 
     preferences.end();
 
-    return (
-        config.wifiSsid.length() > 0 &&
-        config.wifiPassword.length() > 0 &&
-        config.postcode.length() > 0 &&
-        config.openSkyClientId.length() > 0 &&
-        config.openSkyClientSecret.length() > 0
-    );
+    return hasWiFiConfig(config);
 }
 
 void saveConfig(const DeskDarConfig& config) {
@@ -33,6 +42,31 @@ void saveConfig(const DeskDarConfig& config) {
     preferences.putString("os_secret", config.openSkyClientSecret);
 
     preferences.end();
+}
+
+void saveWiFiConfig(const String& wifiSsid, const String& wifiPassword) {
+    DeskDarConfig config;
+    loadConfig(config);
+
+    config.wifiSsid = wifiSsid;
+    config.wifiPassword = wifiPassword;
+
+    saveConfig(config);
+}
+
+void saveAppConfig(
+    const String& postcode,
+    const String& openSkyClientId,
+    const String& openSkyClientSecret
+) {
+    DeskDarConfig config;
+    loadConfig(config);
+
+    config.postcode = postcode;
+    config.openSkyClientId = openSkyClientId;
+    config.openSkyClientSecret = openSkyClientSecret;
+
+    saveConfig(config);
 }
 
 void clearConfig() {
