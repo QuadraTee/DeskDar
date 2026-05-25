@@ -1,3 +1,8 @@
+
+## v0.16-ota-progress-update-check
+- Added OTA upload progress logging and progress bar.
+- Added GitHub latest release/tag check on the OTA page.
+- Improved OTA user guidance during firmware upload and reboot.
 ## v0.14-settings-layout-polish
 - Improved Settings page checkbox alignment for radar label display options.
 
@@ -315,3 +320,9 @@ Persistent Aircraft Knowledge During Runtime
 - Browser radar sweep now animates locally using `requestAnimationFrame()` for smoother motion.
 - Removed stale server-driven sweep value from the dashboard radar summary.
 
+
+
+## v0.15-ota-updates
+- Added web-based OTA firmware upload from the System page.
+- Added OTA update progress logging and automatic restart after successful update.
+- Saved DeskDar configuration remains in ESP32 NVS across firmware updates.
