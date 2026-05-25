@@ -19,9 +19,9 @@
 DeskDarConfig config;
 WebServer server(80);
 
-const char* FIRMWARE_VERSION = "v0.16.1-ota-upload-fix";
-const char* GITHUB_OWNER = "QuadraTee";
-const char* GITHUB_REPO = "DeskDar";
+const char* FIRMWARE_VERSION = "v0.18-http-ota";
+const char* UPDATE_VERSION_URL = "https://quadratee.github.io/DeskDar/latest.txt";
+const char* UPDATE_FIRMWARE_URL = "https://quadratee.github.io/DeskDar/firmware.bin";
 
 String debugLog = "";
 const int MAX_DEBUG_LOG_LENGTH = 8000;
@@ -988,30 +988,8 @@ void handleAircraftPage() {
 
 
 
-String extractJsonStringValue(const String& json, const String& key) {
-    String marker = "\"" + key + "\":";
-    int markerIndex = json.indexOf(marker);
 
-    if (markerIndex < 0) {
-        return "";
-    }
-
-    int valueStart = json.indexOf('"', markerIndex + marker.length());
-
-    if (valueStart < 0) {
-        return "";
-    }
-
-    int valueEnd = json.indexOf('"', valueStart + 1);
-
-    if (valueEnd < 0) {
-        return "";
-    }
-
-    return json.substring(valueStart + 1, valueEnd);
-}
-
-String getLatestGithubTag() {
+String getLatestFirmwareVersion() {
     if (WiFi.status() != WL_CONNECTED) {
         return "";
     }
@@ -1020,61 +998,99 @@ String getLatestGithubTag() {
     client.setInsecure();
 
     HTTPClient https;
-    https.setTimeout(10000);
+    https.setTimeout(15000);
     https.useHTTP10(true);
 
-    String url = "https://api.github.com/repos/";
-    url += GITHUB_OWNER;
-    url += "/";
-    url += GITHUB_REPO;
-    url += "/releases/latest";
-
-    if (!https.begin(client, url)) {
+    if (!https.begin(client, UPDATE_VERSION_URL)) {
         return "";
     }
-
-    https.addHeader("User-Agent", "DeskDar-ESP32");
-    https.addHeader("Accept", "application/vnd.github+json");
 
     int httpCode = https.GET();
-    String payload = "";
 
-    if (httpCode == 200) {
-        payload = https.getString();
+    if (httpCode != 200) {
         https.end();
-        return extractJsonStringValue(payload, "tag_name");
-    }
-
-    https.end();
-
-    // Fallback for repositories that use tags but have not created GitHub Releases yet.
-    url = "https://api.github.com/repos/";
-    url += GITHUB_OWNER;
-    url += "/";
-    url += GITHUB_REPO;
-    url += "/tags";
-
-    if (!https.begin(client, url)) {
         return "";
     }
 
-    https.addHeader("User-Agent", "DeskDar-ESP32");
-    https.addHeader("Accept", "application/vnd.github+json");
+    String latestVersion = https.getString();
+    https.end();
 
-    httpCode = https.GET();
+    latestVersion.trim();
+    return latestVersion;
+}
 
-    if (httpCode == 200) {
-        payload = https.getString();
+bool downloadAndInstallLatestFirmware(String& message) {
+    if (WiFi.status() != WL_CONNECTED) {
+        message = "WiFi is not connected.";
+        return false;
+    }
+
+    WiFiClientSecure client;
+    client.setInsecure();
+
+    HTTPClient https;
+    https.setTimeout(60000);
+    https.useHTTP10(true);
+
+    if (!https.begin(client, UPDATE_FIRMWARE_URL)) {
+        message = "Could not start firmware download.";
+        return false;
+    }
+
+    int httpCode = https.GET();
+
+    if (httpCode != 200) {
+        message = "Firmware download failed. HTTP status: " + String(httpCode);
         https.end();
-        return extractJsonStringValue(payload, "name");
+        return false;
+    }
+
+    int contentLength = https.getSize();
+
+    if (contentLength <= 0) {
+        message = "Firmware download has no valid content length.";
+        https.end();
+        return false;
+    }
+
+    if (!Update.begin(contentLength)) {
+        message = "Could not begin firmware update.";
+        Update.printError(Serial);
+        https.end();
+        return false;
+    }
+
+    WiFiClient* stream = https.getStreamPtr();
+    size_t written = Update.writeStream(*stream);
+
+    if (written != (size_t)contentLength) {
+        message = "Firmware write incomplete. Wrote " + String(written) + " of " + String(contentLength) + " bytes.";
+        Update.printError(Serial);
+        https.end();
+        return false;
+    }
+
+    if (!Update.end()) {
+        message = "Firmware update finalisation failed.";
+        Update.printError(Serial);
+        https.end();
+        return false;
+    }
+
+    if (!Update.isFinished()) {
+        message = "Firmware update did not finish cleanly.";
+        https.end();
+        return false;
     }
 
     https.end();
-    return "";
+
+    message = "Firmware downloaded and installed successfully.";
+    return true;
 }
 
 void handleUpdateCheck() {
-    String latestTag = getLatestGithubTag();
+    String latestTag = getLatestFirmwareVersion();
 
     String json = "{";
     json += "\"currentVersion\":\"";
@@ -1092,6 +1108,55 @@ void handleUpdateCheck() {
     server.send(200, "application/json", json);
 }
 
+
+void handleInstallLatestUpdate() {
+    String latestVersion = getLatestFirmwareVersion();
+
+    if (latestVersion.length() == 0) {
+        server.send(500, "application/json", "{\"ok\":false,\"message\":\"Could not check latest version.\"}");
+        return;
+    }
+
+    if (latestVersion == String(FIRMWARE_VERSION)) {
+        server.send(200, "application/json", "{\"ok\":true,\"message\":\"DeskDar is already up to date.\",\"restart\":false}");
+        return;
+    }
+
+    addDebugLog("HTTP OTA update requested. Latest version: " + latestVersion);
+
+    String message;
+    bool success = downloadAndInstallLatestFirmware(message);
+
+    if (!success) {
+        addDebugLog("HTTP OTA update failed: " + message);
+
+        String json = "{";
+        json += "\"ok\":false,";
+        json += "\"message\":\"";
+        json += jsonEscape(message);
+        json += "\"";
+        json += "}";
+
+        server.send(500, "application/json", json);
+        return;
+    }
+
+    addDebugLog("HTTP OTA update complete. Restarting.");
+
+    String json = "{";
+    json += "\"ok\":true,";
+    json += "\"message\":\"";
+    json += jsonEscape(message);
+    json += "\",";
+    json += "\"restart\":true";
+    json += "}";
+
+    server.send(200, "application/json", json);
+
+    delay(1500);
+    ESP.restart();
+}
+
 void handleOtaUploadPage() {
     String html = buildPageHeader("DeskDar OTA Update", "system");
 
@@ -1101,7 +1166,12 @@ void handleOtaUploadPage() {
 <p class='small'>Upload a compiled PlatformIO firmware binary. Usually this file is <code>.pio/build/esp32dev/firmware.bin</code>.</p>
 <p class='small'><strong>Important:</strong> keep DeskDar powered on during the update. The device will restart automatically after a successful upload.</p>
 
-<div class='notice' id='updateStatus'>Checking GitHub for updates...</div>
+<div class='notice' id='updateStatus'>Checking for updates...</div>
+
+<div style='margin-top:12px;'>
+    <button type='button' id='installLatestButton' disabled>Install Latest Update</button>
+</div>
+<p class='small'>Automatic update downloads <code>firmware.bin</code> from the DeskDar update server. Manual upload remains available below as a fallback.</p>
 
 <form
     id='otaForm'
@@ -1127,6 +1197,7 @@ const uploadButton = document.getElementById('uploadButton');
 const progressBar = document.getElementById('otaProgressBar');
 const otaLog = document.getElementById('otaLog');
 const updateStatus = document.getElementById('updateStatus');
+const installLatestButton = document.getElementById('installLatestButton');
 
 function addOtaLog(message) {
     const now = new Date().toLocaleTimeString();
@@ -1146,23 +1217,62 @@ async function checkForUpdates() {
         const data = await response.json();
 
         if (!data.ok) {
-            updateStatus.innerHTML = 'Could not check GitHub for updates.';
+            updateStatus.innerHTML = 'Could not check for updates.';
             addOtaLog('Update check failed. You can still upload firmware manually.');
             return;
         }
 
         if (data.updateAvailable) {
             updateStatus.innerHTML = '<strong>Update available:</strong> ' + data.latestVersion + '<br>Current version: ' + data.currentVersion;
+            installLatestButton.disabled = false;
             addOtaLog('New version available: ' + data.latestVersion);
         } else {
             updateStatus.innerHTML = 'DeskDar is up to date.<br>Current version: ' + data.currentVersion;
-            addOtaLog('No newer GitHub release/tag found.');
+            installLatestButton.disabled = true;
+            addOtaLog('No newer version found.');
         }
     } catch (error) {
-        updateStatus.innerHTML = 'Could not check GitHub for updates.';
+        updateStatus.innerHTML = 'Could not check for updates.';
         addOtaLog('Update check error: ' + error);
     }
 }
+
+
+installLatestButton.addEventListener('click', async function() {
+    installLatestButton.disabled = true;
+    uploadButton.disabled = true;
+    progressBar.style.width = '15%';
+    progressBar.textContent = 'Starting...';
+
+    addOtaLog('Starting automatic HTTP OTA update.');
+    addOtaLog('Downloading latest firmware. Keep DeskDar powered on.');
+
+    try {
+        const response = await fetch('/install-latest', { method: 'POST' });
+        const data = await response.json();
+
+        if (!response.ok || !data.ok) {
+            progressBar.style.width = '0%';
+            progressBar.textContent = 'Failed';
+            addOtaLog('Automatic update failed: ' + (data.message || response.status));
+            uploadButton.disabled = false;
+            await checkForUpdates();
+            return;
+        }
+
+        progressBar.style.width = '100%';
+        progressBar.textContent = '100%';
+        addOtaLog(data.message || 'Automatic update installed.');
+        addOtaLog('Device is restarting. Reconnect in around 10 seconds.');
+    } catch (error) {
+        progressBar.style.width = '0%';
+        progressBar.textContent = 'Failed';
+        addOtaLog('Automatic update error: ' + error);
+        uploadButton.disabled = false;
+        await checkForUpdates();
+    }
+});
+
 
 uploadButton.addEventListener('click', function() {
     if (!firmwareFile.files.length) {
@@ -1483,6 +1593,7 @@ void setup() {
     server.on("/system", handleSystemPage);
     server.on("/ota", HTTP_GET, handleOtaUploadPage);
     server.on("/update-check", HTTP_GET, handleUpdateCheck);
+    server.on("/install-latest", HTTP_POST, handleInstallLatestUpdate);
     server.on(
         "/ota-update",
         HTTP_POST,
