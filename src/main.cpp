@@ -302,6 +302,30 @@ button.danger {
     color: #a9cfa9;
     font-size: 0.95em;
 }
+
+.setting-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 8px 0;
+}
+
+.setting-row span {
+    min-width: 180px;
+    font-weight: 600;
+}
+
+.setting-row input {
+    transform: scale(1.15);
+}
+.setting-row span {
+    font-weight: 700;
+}
+.setting-row input[type="checkbox"] {
+    width: auto;
+    margin: 0;
+    transform: scale(1.2);
+}
 </style>
 )rawliteral";
     html += "</head><body>";
@@ -496,14 +520,6 @@ function drawSweep(centerX, centerY, radius, angleDegrees) {
     radarContext.fillStyle = gradient;
     radarContext.fill();
 
-    radarContext.strokeStyle = 'rgba(0, 255, 80, 0.9)';
-    radarContext.beginPath();
-    radarContext.moveTo(centerX, centerY);
-    radarContext.lineTo(
-        centerX + Math.sin(radians) * radius,
-        centerY - Math.cos(radians) * radius
-    );
-    radarContext.stroke();
     radarContext.restore();
 }
 
@@ -575,8 +591,42 @@ function drawAircraft(aircraft, centerX, centerY, radius, rangeKm, orientationDe
     radarContext.fillStyle = `rgba(180, 255, 180, ${alpha})`;
     radarContext.font = '11px monospace';
 
-    const label = aircraft.callsign || aircraft.registration || aircraft.icao24;
-    radarContext.fillText(label, x + 7, y - 7);
+    const labelSettings = radarData.labelSettings || {};
+    const labelLines = [];
+
+    labelLines.push(aircraft.callsign || aircraft.registration || aircraft.icao24);
+
+    if (labelSettings.registration && aircraft.registration && aircraft.registration !== 'Unknown') {
+        labelLines.push(aircraft.registration);
+    }
+
+    if (labelSettings.model && aircraft.model && aircraft.model !== 'Unknown') {
+        labelLines.push(aircraft.model);
+    }
+
+    if (labelSettings.type && aircraft.type && aircraft.type !== 'Unknown') {
+        labelLines.push(aircraft.type);
+    }
+
+    if (labelSettings.distance) {
+        labelLines.push((predicted.distanceKm || 0).toFixed(1) + ' km');
+    }
+
+    if (labelSettings.altitude) {
+        labelLines.push(Math.round(aircraft.altitudeFeet || 0) + ' ft');
+    }
+
+    if (labelSettings.speed) {
+        labelLines.push(Math.round(aircraft.speedKnots || 0) + ' kt');
+    }
+
+    if (labelSettings.heading) {
+        labelLines.push('HDG ' + Math.round(aircraft.headingDegrees || 0) + '°');
+    }
+
+    for (let i = 0; i < labelLines.length; i++) {
+        radarContext.fillText(labelLines[i], x + 7, y - 7 + (i * 12));
+    }
 }
 
 async function fetchRadarData() {
@@ -742,6 +792,10 @@ void handleSettingsPage() {
 
     appendSetupNotice(html);
 
+    if (server.hasArg("saved")) {
+        html += "<div class='notice'>Settings saved and applied without restart.</div>";
+    }
+
     html += "<div class='card'>";
     html += "<h2>Aircraft Data Settings</h2>";
     html += "<p class='small'>These settings are entered after DeskDar is connected to your home WiFi. They are saved on the ESP32.</p>";
@@ -769,7 +823,38 @@ void handleSettingsPage() {
     html += "'>";
     html += "<p class='small'>0 = north-up. Set this to the direction you face at your desk, for example 146 for south-east.</p>";
 
-    html += "<button type='submit'>Save Settings & Restart</button>";
+    html += "<h3>Radar Label Display</h3>";
+    html += "<p class='small'>Choose what appears under each aircraft callsign on the browser radar.</p>";
+
+    html += "<label class='setting-row'><span>Registration</span><input type='checkbox' name='show_registration' ";
+    html += config.showLabelRegistration ? "checked" : "";
+    html += "></label>";
+
+    html += "<label class='setting-row'><span>Aircraft model</span><input type='checkbox' name='show_model' ";
+    html += config.showLabelModel ? "checked" : "";
+    html += "></label>";
+
+    html += "<label class='setting-row'><span>Aircraft type</span><input type='checkbox' name='show_type' ";
+    html += config.showLabelType ? "checked" : "";
+    html += "></label>";
+
+    html += "<label class='setting-row'><span>Distance</span><input type='checkbox' name='show_distance' ";
+    html += config.showLabelDistance ? "checked" : "";
+    html += "></label>";
+
+    html += "<label class='setting-row'><span>Altitude</span><input type='checkbox' name='show_altitude' ";
+    html += config.showLabelAltitude ? "checked" : "";
+    html += "></label>";
+
+    html += "<label class='setting-row'><span>Speed</span><input type='checkbox' name='show_speed' ";
+    html += config.showLabelSpeed ? "checked" : "";
+    html += "></label>";
+
+    html += "<label class='setting-row'><span>Heading</span><input type='checkbox' name='show_heading' ";
+    html += config.showLabelHeading ? "checked" : "";
+    html += "></label>";
+
+    html += "<button type='submit'>Save Settings</button>";
     html += "</form>";
     html += "</div>";
 
@@ -789,6 +874,10 @@ void handleSettingsPage() {
 }
 
 void handleSaveSettings() {
+    String oldPostcode = config.postcode;
+    String oldOpenSkyClientId = config.openSkyClientId;
+    String oldOpenSkyClientSecret = config.openSkyClientSecret;
+
     String postcode = server.arg("postcode");
     String openSkyClientId = server.arg("opensky_client_id");
     String openSkyClientSecret = server.arg("opensky_client_secret");
@@ -799,20 +888,30 @@ void handleSaveSettings() {
     config.openSkyClientSecret = openSkyClientSecret;
     config.radarOrientationDegrees = radarOrientation;
 
+    config.showLabelRegistration = server.hasArg("show_registration");
+    config.showLabelModel = server.hasArg("show_model");
+    config.showLabelType = server.hasArg("show_type");
+    config.showLabelDistance = server.hasArg("show_distance");
+    config.showLabelAltitude = server.hasArg("show_altitude");
+    config.showLabelSpeed = server.hasArg("show_speed");
+    config.showLabelHeading = server.hasArg("show_heading");
+
     saveConfig(config);
 
-    server.send(
-        200,
-        "text/html",
-        "<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width, initial-scale=1'></head>"
-        "<body style='font-family:Arial,sans-serif;background:#081008;color:#e8ffe8;padding:24px;'>"
-        "<h1>DeskDar settings saved</h1>"
-        "<p>Device will restart and begin radar mode.</p>"
-        "</body></html>"
-    );
+    addDebugLog("Settings saved without restart.");
 
-    delay(2000);
-    ESP.restart();
+    bool appSettingsChanged =
+        oldPostcode != config.postcode ||
+        oldOpenSkyClientId != config.openSkyClientId ||
+        oldOpenSkyClientSecret != config.openSkyClientSecret;
+
+    if (appSettingsChanged || !appConfigReady || !locationReady) {
+        addDebugLog("Applying updated app settings...");
+        initialiseDeskDarServices();
+    }
+
+    server.sendHeader("Location", "/settings?saved=1", true);
+    server.send(302, "text/plain", "");
 }
 
 void handleResetConfig() {
@@ -836,6 +935,10 @@ void handleAircraftPage() {
     String html = buildPageHeader("DeskDar Aircraft", "aircraft");
 
     appendSetupNotice(html);
+
+    if (server.hasArg("saved")) {
+        html += "<div class='notice'>Settings saved and applied without restart.</div>";
+    }
 
     html += "<div class='card'>";
     html += "<h2>Current Aircraft</h2>";
@@ -883,7 +986,7 @@ void handleSystemPage() {
 
     html += "<div class='card'><h2>Firmware</h2>";
     html += "<p><strong>Version:</strong> ";
-    html += "v0.11-browser-radar-prediction";
+    html += "v0.12-browser-radar-label-settings";
     html += "</p></div>";
 
     html += "<div class='card'><h2>Memory</h2>";
@@ -919,6 +1022,22 @@ void handleAircraftJson() {
     json += "\"orientationDegrees\":";
     json += String(config.radarOrientationDegrees, 1);
     json += ",";
+    json += "\"labelSettings\":{";
+    json += "\"registration\":";
+    json += config.showLabelRegistration ? "true" : "false";
+    json += ",\"model\":";
+    json += config.showLabelModel ? "true" : "false";
+    json += ",\"type\":";
+    json += config.showLabelType ? "true" : "false";
+    json += ",\"distance\":";
+    json += config.showLabelDistance ? "true" : "false";
+    json += ",\"altitude\":";
+    json += config.showLabelAltitude ? "true" : "false";
+    json += ",\"speed\":";
+    json += config.showLabelSpeed ? "true" : "false";
+    json += ",\"heading\":";
+    json += config.showLabelHeading ? "true" : "false";
+    json += "},";
     json += "\"aircraft\":[";
 
     for (int i = 0; i < currentAircraftCount; i++) {

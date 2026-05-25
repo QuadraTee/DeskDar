@@ -1,3 +1,12 @@
+## v0.14-settings-layout-polish
+- Improved Settings page checkbox alignment for radar label display options.
+
+
+## v0.13-live-settings-apply
+- Dashboard settings now save and apply without restarting the ESP32.
+- Radar orientation and browser radar label options update through saved config without reboot.
+- Postcode/OpenSky changes reinitialise DeskDar services in-place.
+
 
 ## v0.11-browser-radar-prediction
 - Added browser-side dead reckoning for smooth aircraft movement between OpenSky updates.
@@ -20,6 +29,12 @@
 - Added WiFi connection timeout fallback to setup portal.
 
 # DeskDar Development Changelog
+
+## v0.12-browser-radar-label-settings
+- Removed the solid green browser radar sweep line, leaving only the soft sweep wedge.
+- Added radar label display settings for registration, model, type, distance, altitude, speed, and heading.
+- Added persistent storage for browser radar label preferences.
+- Updated browser radar label rendering to follow the selected settings.
 
 ## v0.7-renderer-prep
 - Decreased opensky API timing to once every 30s 

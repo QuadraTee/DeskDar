@@ -28,6 +28,14 @@ bool loadConfig(DeskDarConfig& config) {
     config.openSkyClientSecret = preferences.getString("os_secret", "");
     config.radarOrientationDegrees = preferences.getFloat("orientation", 0.0);
 
+    config.showLabelRegistration = preferences.getBool("lbl_reg", false);
+    config.showLabelModel = preferences.getBool("lbl_model", false);
+    config.showLabelType = preferences.getBool("lbl_type", false);
+    config.showLabelDistance = preferences.getBool("lbl_dist", true);
+    config.showLabelAltitude = preferences.getBool("lbl_alt", true);
+    config.showLabelSpeed = preferences.getBool("lbl_speed", false);
+    config.showLabelHeading = preferences.getBool("lbl_heading", false);
+
     preferences.end();
 
     return hasWiFiConfig(config);
@@ -42,6 +50,14 @@ void saveConfig(const DeskDarConfig& config) {
     preferences.putString("os_id", config.openSkyClientId);
     preferences.putString("os_secret", config.openSkyClientSecret);
     preferences.putFloat("orientation", config.radarOrientationDegrees);
+
+    preferences.putBool("lbl_reg", config.showLabelRegistration);
+    preferences.putBool("lbl_model", config.showLabelModel);
+    preferences.putBool("lbl_type", config.showLabelType);
+    preferences.putBool("lbl_dist", config.showLabelDistance);
+    preferences.putBool("lbl_alt", config.showLabelAltitude);
+    preferences.putBool("lbl_speed", config.showLabelSpeed);
+    preferences.putBool("lbl_heading", config.showLabelHeading);
 
     preferences.end();
 }

@@ -9,6 +9,14 @@ struct DeskDarConfig {
     String openSkyClientId;
     String openSkyClientSecret;
     float radarOrientationDegrees;
+
+    bool showLabelRegistration;
+    bool showLabelModel;
+    bool showLabelType;
+    bool showLabelDistance;
+    bool showLabelAltitude;
+    bool showLabelSpeed;
+    bool showLabelHeading;
 };
 
 bool loadConfig(DeskDarConfig& config);
