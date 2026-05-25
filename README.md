@@ -80,6 +80,8 @@ DeskDar includes a full browser dashboard for:
 
 ![dashboard](docs/images/dashboard-final.png)
 
+### Settings Page
+
 ![Settings Page](docs/images/settings-page.png)
 
 ---
