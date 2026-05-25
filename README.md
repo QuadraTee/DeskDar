@@ -275,24 +275,6 @@ Current status:
 
 ---
 
-# Screenshots
-
-Create a folder:
-
-```text
-/docs/images/
-```
-
-Suggested screenshots:
-
-* dashboard.png
-* radar-large.png
-* airports-overlay.png
-* ota-page.png
-* settings-page.png
-
----
-
 # License
 
 MIT License
