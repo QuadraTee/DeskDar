@@ -1,253 +1,306 @@
 # DeskDar
 
-DeskDar is a real-time aircraft radar and metadata tracking system built on the ESP32 platform.
+> A live aircraft radar appliance powered by ESP32, OpenSky Network, browser radar rendering, OTA updates, and real-time aircraft prediction.
+
+---
+
+## Overview
+
+DeskDar is a standalone ESP32-based live radar display designed to track nearby aircraft in real time.
 
 It combines:
-- OpenSky Network live aircraft telemetry
-- ADSBdb aircraft metadata enrichment
-- postcode-based geolocation
-- ASCII radar visualisation
-- FreeRTOS background task scheduling
-- onboard metadata caching
-- live web debugging tools
 
-The project is designed as a lightweight always-on desktop radar appliance.
+* Live OpenSky aircraft tracking
+* Browser-based animated radar
+* Aircraft prediction/interpolation
+* UK airport overlays
+* OTA firmware updates
+* Automatic HTTP OTA updating
+* Persistent configuration
+* Orientation-aware radar rendering
+* Dedicated large radar display mode
+
+The project is designed to evolve into a dedicated desktop radar instrument with TFT display support and automatic compass-based orientation.
 
 ---
 
 # Features
 
-## Live Aircraft Tracking
-- Real-time nearby aircraft detection
-- Distance sorting
-- Bearing and compass direction calculations
-- Altitude tracking
-- Speed tracking
-- Heading vectors
-- Vertical rate monitoring
+## Live Browser Radar
 
-## Radar Display
-- ASCII radar preview
-- Relative aircraft positioning
-- Heading indicators
+* Real-time aircraft rendering
+* Smooth animated radar sweep
+* Aircraft motion prediction between API refreshes
+* Fade-based freshness system
+* Adjustable radar range
+* Orientation-aware rendering
+* Large dedicated radar page
 
-## Aircraft Metadata
-- Registration lookup
-- Manufacturer lookup
-- Aircraft model lookup
-- ICAO aircraft type lookup
+### Radar View
 
-## Smart Networking
-- OpenSky OAuth authentication
-- Automatic token refresh
-- Background metadata enrichment
-- Safe task scheduling
-- Rate-limit handling
+> Add screenshot here
 
-## Cache System
-- In-memory metadata cache
-- FIFO cache eviction
-- Reduced API usage
-- Faster repeat aircraft enrichment
+```text
+/docs/images/radar-large.png
+```
 
-## Web Debug Dashboard
-- ESP32-hosted debug webpage
-- Live system logs
-- Heap monitoring
-- WiFi status
-- Runtime telemetry
+---
+
+## UK Airport Overlay System
+
+DeskDar includes UK airport and airfield overlays directly on the radar.
+
+Supported:
+
+* Major airports
+* General aviation airfields
+* ICAO labels
+* Range-based filtering
+* Independent enable/disable controls
+
+### Airport Overlay Example
+
+> Add screenshot here
+
+```text
+/docs/images/airports-overlay.png
+```
+
+---
+
+## Live Dashboard
+
+DeskDar includes a full browser dashboard for:
+
+* Device status
+* Radar preview
+* Aircraft information
+* Logs
+* Settings
+* OTA updates
+
+### Dashboard Example
+
+> Add screenshot here
+
+```text
+/docs/images/dashboard.png
+```
+
+---
+
+## OTA Firmware Updates
+
+DeskDar supports:
+
+* Manual browser OTA uploads
+* HTTP OTA updates
+* Automatic firmware version checking
+* OTA progress feedback
+* OTA update logs
+
+### OTA Update Page
+
+> Add screenshot here
+
+```text
+/docs/images/ota-page.png
+```
 
 ---
 
 # Hardware
 
-## Current Platform
-- ESP32 Dev Board
+## Current Hardware
+
+* ESP32 Dev Board
+* WiFi connection
+* Browser-based radar renderer
 
 ## Planned Hardware
-- TFT radar display
-- Dedicated enclosure
-- Always-on desktop deployment
+
+* TFT radar display
+* QMC5883L compass module
+* Automatic radar orientation
+* Physical enclosure
 
 ---
 
-# Software Architecture
+# Browser Pages
+
+| Page        | Purpose              |
+| ----------- | -------------------- |
+| `/`         | Dashboard            |
+| `/radar`    | Large radar view     |
+| `/logs`     | Live logs            |
+| `/ota`      | OTA updates          |
+| `/settings` | Device configuration |
+
+---
+
+# Radar Features
+
+## Aircraft Prediction
+
+DeskDar predicts aircraft movement between OpenSky refreshes using:
+
+* Heading
+* Speed
+* Elapsed time
+
+This creates smooth aircraft movement even with lower API refresh intervals.
+
+---
+
+## Orientation-Aware Radar
+
+The radar can rotate relative to:
+
+* Manual desk orientation
+* Future compass heading input
+
+This allows the radar to align with the real-world direction the device is facing.
+
+---
+
+# Installation
+
+## 1. Flash Initial Firmware
+
+Use PlatformIO or ESP Web Tools to flash the firmware to the ESP32.
+
+---
+
+## 2. Connect To Setup Portal
+
+On first boot DeskDar creates:
 
 ```text
-WiFi
-↓
-OpenSky OAuth Authentication
-↓
-Live Aircraft Fetch
-↓
-Distance/Bearing Processing
-↓
-ASCII Radar Rendering
-↓
-Metadata Queue
-↓
-FreeRTOS Metadata Task
-↓
-ADSBdb Lookup
-↓
-FIFO Metadata Cache
-↓
-Web Debug Dashboard
+DeskDar Setup
 ```
 
----
+Connect and enter:
 
-# Current Stability Status
-
-The current architecture has been soak-tested for multiple hours with:
-- stable WiFi operation
-- stable HTTPS networking
-- successful token refresh recovery
-- concurrent OpenSky + ADSBdb usage
-- stable FreeRTOS task handling
-- crash-free metadata caching
+* WiFi SSID
+* WiFi password
 
 ---
 
-# Project Structure
+## 3. Open DeskDar Dashboard
+
+After connecting to WiFi, access DeskDar via:
 
 ```text
-src/
-├── main.cpp
-├── opensky_client.cpp
-├── opensky_auth.cpp
-├── postcode_client.cpp
-├── aircraft_metadata.cpp
-├── display.cpp
-
-include/
-├── aircraft.h
-├── opensky_client.h
-├── opensky_auth.h
-├── postcode_client.h
-├── aircraft_metadata.h
-├── display.h
-├── secrets.h
+http://<ESP32-IP>
 ```
+
+Then configure:
+
+* Postcode
+* OpenSky credentials
+* Radar preferences
 
 ---
 
-# Configuration
+# HTTP OTA Update System
 
-Create:
+DeskDar supports automatic firmware updates using:
 
 ```text
-include/secrets.h
+/docs/latest.txt
+/docs/firmware.bin
 ```
 
-Example:
+## Release Workflow
 
-```cpp
-#pragma once
+### Build firmware
 
-#define WIFI_SSID "YOUR_WIFI"
-#define WIFI_PASSWORD "YOUR_PASSWORD"
-
-#define POSTCODE "YOUR_POSTCODE"
-
-#define OPENSKY_CLIENT_ID "YOUR_CLIENT_ID"
-#define OPENSKY_CLIENT_SECRET "YOUR_CLIENT_SECRET"
+```bash
+aio run
 ```
 
----
+### Copy firmware
 
-# Git Ignore
-
-Recommended `.gitignore` entries:
+Copy:
 
 ```text
-.pio
-.vscode/.browse.c_cpp.db*
-.vscode/c_cpp_properties.json
-.vscode/launch.json
-.vscode/ipch
-
-include/secrets.h
-credentials.json
+.pio/build/esp32dev/firmware.bin
 ```
 
----
-
-# APIs Used
-
-## OpenSky Network
-Real-time aircraft telemetry.
-
-https://opensky-network.org/
-
-## ADSBdb
-Aircraft metadata enrichment.
-
-https://www.adsbdb.com/
-
-## Postcodes.io
-UK postcode geolocation.
-
-https://postcodes.io/
-
----
-
-# Debug Dashboard
-
-After boot, open:
+to:
 
 ```text
-http://ESP32_IP_ADDRESS/debug
+/docs/firmware.bin
+```
+
+### Update latest version
+
+Edit:
+
+```text
+/docs/latest.txt
 ```
 
 Example:
 
 ```text
-http://192.168.1.58/debug
+v0.20-large-radar-tab
 ```
 
-The dashboard displays:
-- WiFi status
-- heap usage
-- logs
-- runtime telemetry
-- aircraft fetch activity
-- metadata task activity
+### Push release
+
+```bash
+git add .
+git commit -m "release: publish firmware"
+git push origin main
+```
 
 ---
 
-# Roadmap
+# Project Status
 
-## Planned Features
-- TFT graphical radar display
-- Aircraft icons/classes
-- Persistent flash metadata database
-- Aircraft history
-- Motion trails
-- Touch controls
-- Setup/configuration webpage
-- Local aircraft database
-- OTA firmware updates
+Current status:
+
+* Stable browser radar
+* Stable OTA updates
+* Stable HTTP OTA updates
+* Airport overlay system complete
+* TFT integration pending
+* Compass integration pending
 
 ---
 
-# Version
+# Future Roadmap
 
-Current stable milestone:
+* TFT radar rendering
+* Compass auto-orientation
+* Compass calibration
+* Aircraft trails
+* Audio alerts
+* Fullscreen kiosk mode
+* Aircraft history playback
+* Touchscreen support
+
+---
+
+# Screenshots
+
+Create a folder:
 
 ```text
-v0.7-stable
+/docs/images/
 ```
+
+Suggested screenshots:
+
+* dashboard.png
+* radar-large.png
+* airports-overlay.png
+* ota-page.png
+* settings-page.png
 
 ---
 
 # License
 
 MIT License
-
----
-
-# Author
-
-Matt Howard
-```
