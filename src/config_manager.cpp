@@ -36,6 +36,10 @@ bool loadConfig(DeskDarConfig& config) {
     config.showLabelSpeed = preferences.getBool("lbl_speed", false);
     config.showLabelHeading = preferences.getBool("lbl_heading", false);
 
+    config.showAirports = preferences.getBool("show_ap", true);
+    config.showMajorAirports = preferences.getBool("show_ap_major", true);
+    config.showGaAirports = preferences.getBool("show_ap_ga", true);
+
     preferences.end();
 
     return hasWiFiConfig(config);
@@ -58,6 +62,10 @@ void saveConfig(const DeskDarConfig& config) {
     preferences.putBool("lbl_alt", config.showLabelAltitude);
     preferences.putBool("lbl_speed", config.showLabelSpeed);
     preferences.putBool("lbl_heading", config.showLabelHeading);
+
+    preferences.putBool("show_ap", config.showAirports);
+    preferences.putBool("show_ap_major", config.showMajorAirports);
+    preferences.putBool("show_ap_ga", config.showGaAirports);
 
     preferences.end();
 }

@@ -326,3 +326,10 @@ Persistent Aircraft Knowledge During Runtime
 - Added web-based OTA firmware upload from the System page.
 - Added OTA update progress logging and automatic restart after successful update.
 - Saved DeskDar configuration remains in ESP32 NVS across firmware updates.
+
+## v0.19-airports-on-radar
+- Added UK airports and airfields database.
+- Added airport markers to browser radar.
+- Added settings toggles for all airports, major airports, and GA/small airfields.
+- Airport markers follow radar range and orientation settings.
+

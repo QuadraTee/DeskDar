@@ -15,11 +15,12 @@
 #include "opensky_auth.h"
 #include "config_manager.h"
 #include "setup_portal.h"
+#include "airport_landmarks.h"
 
 DeskDarConfig config;
 WebServer server(80);
 
-const char* FIRMWARE_VERSION = "v0.18-http-ota";
+const char* FIRMWARE_VERSION = "v0.19-airports-on-radar";
 const char* UPDATE_VERSION_URL = "https://quadratee.github.io/DeskDar/latest.txt";
 const char* UPDATE_FIRMWARE_URL = "https://quadratee.github.io/DeskDar/firmware.bin";
 
@@ -88,6 +89,41 @@ float normaliseDegrees(float degrees) {
     return degrees;
 }
 
+
+
+float dashboardDegreesToRadians(float degrees) {
+    return degrees * PI / 180.0;
+}
+
+float dashboardDistanceKm(float lat1, float lon1, float lat2, float lon2) {
+    const float earthRadiusKm = 6371.0;
+
+    float dLat = dashboardDegreesToRadians(lat2 - lat1);
+    float dLon = dashboardDegreesToRadians(lon2 - lon1);
+
+    float a =
+        sin(dLat / 2) * sin(dLat / 2) +
+        cos(dashboardDegreesToRadians(lat1)) *
+        cos(dashboardDegreesToRadians(lat2)) *
+        sin(dLon / 2) * sin(dLon / 2);
+
+    float c = 2 * atan2(sqrt(a), sqrt(1 - a));
+
+    return earthRadiusKm * c;
+}
+
+float dashboardBearingDegrees(float lat1, float lon1, float lat2, float lon2) {
+    float phi1 = dashboardDegreesToRadians(lat1);
+    float phi2 = dashboardDegreesToRadians(lat2);
+    float deltaLon = dashboardDegreesToRadians(lon2 - lon1);
+
+    float y = sin(deltaLon) * cos(phi2);
+    float x =
+        cos(phi1) * sin(phi2) -
+        sin(phi1) * cos(phi2) * cos(deltaLon);
+
+    return normaliseDegrees(atan2(y, x) * 180.0 / PI);
+}
 
 String getCurrentTimeString() {
     struct tm timeinfo;
@@ -429,7 +465,13 @@ const radarContext = radarCanvas.getContext('2d');
 let radarData = {
     rangeKm: 25,
     orientationDegrees: 0,
-    aircraft: []
+    aircraft: [],
+    airports: [],
+    airportSettings: {
+        showAirports: true,
+        showMajorAirports: true,
+        showGaAirports: true
+    }
 };
 
 const sweepDegreesPerSecond = 90;
@@ -560,6 +602,39 @@ function predictAircraftPolar(aircraft) {
     };
 }
 
+
+function drawAirport(airport, centerX, centerY, radius, rangeKm, orientationDegrees) {
+    if (!airport || airport.distanceKm > rangeKm) {
+        return;
+    }
+
+    const distanceRatio = Math.min(airport.distanceKm / rangeKm, 1);
+    const displayBearing = normaliseDegrees(airport.bearingDegrees - orientationDegrees);
+    const bearingRadians = bearingToCanvasRadians(displayBearing);
+
+    const x = centerX + Math.sin(bearingRadians) * radius * distanceRatio;
+    const y = centerY - Math.cos(bearingRadians) * radius * distanceRatio;
+
+    const isMajor = airport.category === 'major';
+    const markerSize = isMajor ? 5 : 3;
+
+    radarContext.strokeStyle = isMajor ? 'rgba(80, 220, 255, 0.95)' : 'rgba(90, 170, 255, 0.75)';
+    radarContext.fillStyle = isMajor ? 'rgba(80, 220, 255, 0.95)' : 'rgba(90, 170, 255, 0.75)';
+    radarContext.lineWidth = 1;
+
+    radarContext.beginPath();
+    radarContext.moveTo(x - markerSize, y);
+    radarContext.lineTo(x + markerSize, y);
+    radarContext.moveTo(x, y - markerSize);
+    radarContext.lineTo(x, y + markerSize);
+    radarContext.stroke();
+
+    if (isMajor || airport.distanceKm < 15) {
+        radarContext.font = isMajor ? '11px monospace' : '10px monospace';
+        radarContext.fillText(airport.ident, x + 6, y + 4);
+    }
+}
+
 function drawAircraft(aircraft, centerX, centerY, radius, rangeKm, orientationDegrees) {
     const predicted = predictAircraftPolar(aircraft);
 
@@ -658,6 +733,17 @@ function drawBrowserRadarFrame(timestamp) {
     );
 
     drawSweep(centerX, centerY, radius, sweepAngle);
+
+    for (const airport of radarData.airports || []) {
+        drawAirport(
+            airport,
+            centerX,
+            centerY,
+            radius,
+            radarData.rangeKm || 25,
+            orientationDegrees
+        );
+    }
 
     for (const aircraft of radarData.aircraft || []) {
         drawAircraft(
@@ -861,6 +947,22 @@ void handleSettingsPage() {
     html += config.showLabelHeading ? "checked" : "";
     html += "></label>";
 
+
+    html += "<h3>Airport Display</h3>";
+    html += "<p class='small'>Show fixed UK airport and airfield markers on the browser radar.</p>";
+
+    html += "<label class='setting-row'><span>Show Airports</span><input type='checkbox' name='show_airports' ";
+    html += config.showAirports ? "checked" : "";
+    html += "></label>";
+
+    html += "<label class='setting-row'><span>Major Airports</span><input type='checkbox' name='show_major_airports' ";
+    html += config.showMajorAirports ? "checked" : "";
+    html += "></label>";
+
+    html += "<label class='setting-row'><span>GA / Small Airfields</span><input type='checkbox' name='show_ga_airports' ";
+    html += config.showGaAirports ? "checked" : "";
+    html += "></label>";
+
     html += "<button type='submit'>Save Settings</button>";
     html += "</form>";
     html += "</div>";
@@ -902,6 +1004,10 @@ void handleSaveSettings() {
     config.showLabelAltitude = server.hasArg("show_altitude");
     config.showLabelSpeed = server.hasArg("show_speed");
     config.showLabelHeading = server.hasArg("show_heading");
+
+    config.showAirports = server.hasArg("show_airports");
+    config.showMajorAirports = server.hasArg("show_major_airports");
+    config.showGaAirports = server.hasArg("show_ga_airports");
 
     saveConfig(config);
 
@@ -1454,6 +1560,72 @@ void handleAircraftJson() {
     json += ",\"heading\":";
     json += config.showLabelHeading ? "true" : "false";
     json += "},";
+    json += "\"airportSettings\":{";
+    json += "\"showAirports\":";
+    json += config.showAirports ? "true" : "false";
+    json += ",\"showMajorAirports\":";
+    json += config.showMajorAirports ? "true" : "false";
+    json += ",\"showGaAirports\":";
+    json += config.showGaAirports ? "true" : "false";
+    json += "},";
+    json += "\"airports\":[";
+
+    bool firstAirport = true;
+
+    if (locationReady && config.showAirports) {
+        for (int i = 0; i < UK_AIRPORT_COUNT; i++) {
+            const AirportLandmark& airport = UK_AIRPORTS[i];
+            bool isMajor = airport.category == AIRPORT_MAJOR;
+            bool isGa = airport.category == AIRPORT_GA;
+
+            if ((isMajor && !config.showMajorAirports) || (isGa && !config.showGaAirports)) {
+                continue;
+            }
+
+            float distanceKm = dashboardDistanceKm(
+                userLatitude,
+                userLongitude,
+                airport.latitude,
+                airport.longitude
+            );
+
+            if (distanceKm > getSearchRadiusKm()) {
+                continue;
+            }
+
+            float bearingDegrees = dashboardBearingDegrees(
+                userLatitude,
+                userLongitude,
+                airport.latitude,
+                airport.longitude
+            );
+
+            if (!firstAirport) {
+                json += ",";
+            }
+
+            firstAirport = false;
+
+            json += "{";
+            json += "\"ident\":\"";
+            json += jsonEscape(String(airport.ident));
+            json += "\",";
+            json += "\"name\":\"";
+            json += jsonEscape(String(airport.name));
+            json += "\",";
+            json += "\"category\":\"";
+            json += isMajor ? "major" : "ga";
+            json += "\",";
+            json += "\"distanceKm\":";
+            json += String(distanceKm, 2);
+            json += ",";
+            json += "\"bearingDegrees\":";
+            json += String(bearingDegrees, 1);
+            json += "}";
+        }
+    }
+
+    json += "],";
     json += "\"aircraft\":[";
 
     for (int i = 0; i < currentAircraftCount; i++) {
