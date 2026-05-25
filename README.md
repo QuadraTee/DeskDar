@@ -38,9 +38,9 @@ The project is designed to evolve into a dedicated desktop radar instrument with
 
 ### Radar View
 
-```text
+
 ![Large Radar](docs/images/radar-large.png)
-```
+
 
 ---
 
@@ -58,9 +58,9 @@ Supported:
 
 ### Airport Overlay Example
 
-```text
+
 ![Airport Overlay](docs/images/airports-overlay.png)
-```
+
 
 ---
 
@@ -77,9 +77,9 @@ DeskDar includes a full browser dashboard for:
 
 ### Dashboard Example
 
-```text
+
 ![Dashboard](docs/images/dashboard.png)
-```
+
 
 ---
 
@@ -95,9 +95,9 @@ DeskDar supports:
 
 ### OTA Update Page
 
-```text
+
 ![OTA Page](docs/images/ota-page.png)
-```
+
 
 ---
 
