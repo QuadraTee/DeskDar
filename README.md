@@ -78,7 +78,7 @@ DeskDar includes a full browser dashboard for:
 ### Dashboard Example
 
 
-![Dashboard](docs/images/dashboard.png)
+![Dashboard](docs/images/Dashboard.png)
 
 
 ---
