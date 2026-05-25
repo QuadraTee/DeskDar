@@ -333,3 +333,8 @@ Persistent Aircraft Knowledge During Runtime
 - Added settings toggles for all airports, major airports, and GA/small airfields.
 - Airport markers follow radar range and orientation settings.
 
+
+## v0.20-large-radar-tab
+- Added a dedicated Radar tab with a larger browser radar canvas.
+- Kept the dashboard radar preview as a compact overview.
+

@@ -20,7 +20,7 @@
 DeskDarConfig config;
 WebServer server(80);
 
-const char* FIRMWARE_VERSION = "v0.19-airports-on-radar";
+const char* FIRMWARE_VERSION = "v0.20-large-radar-tab";
 const char* UPDATE_VERSION_URL = "https://quadratee.github.io/DeskDar/latest.txt";
 const char* UPDATE_FIRMWARE_URL = "https://quadratee.github.io/DeskDar/firmware.bin";
 
@@ -369,6 +369,16 @@ button.danger {
     margin: 0;
     transform: scale(1.2);
 }
+
+.radar-page-card {
+    max-width: 1100px;
+    margin-left: auto;
+    margin-right: auto;
+}
+.radar-large-wrap {
+    display: flex;
+    justify-content: center;
+}
 </style>
 )rawliteral";
     html += "</head><body>";
@@ -379,6 +389,10 @@ button.danger {
     html += "<a href='/'";
     if (activeTab == "dashboard") html += " class='active'";
     html += ">Dashboard</a>";
+
+    html += "<a href='/radar'";
+    if (activeTab == "radar") html += " class='active'";
+    html += ">Radar</a>";
 
     html += "<a href='/logs-page'";
     if (activeTab == "logs") html += " class='active'";
@@ -438,26 +452,36 @@ function updateRadius(value) {
     html += "</div>";
 }
 
-void appendBrowserRadar(String& html) {
-    html += R"rawliteral(
-<div class='card'>
-<h2>Browser Radar Preview</h2>
-<p class='small'>Prototype renderer for the future TFT radar. Sweep animation is handled locally in the browser for smoother movement.</p>
-<canvas
-    id="radarCanvas"
-    width="520"
-    height="520"
-    style="
-        width:100%;
-        max-width:520px;
-        background:#020802;
-        border:1px solid #245c24;
-        border-radius:12px;
-        display:block;
-    "
-></canvas>
-</div>
+void appendBrowserRadar(String& html, bool largeView = false) {
+    int canvasSize = largeView ? 900 : 520;
+    int maxWidth = largeView ? 900 : 520;
 
+    html += "<div class='card";
+    if (largeView) {
+        html += " radar-page-card";
+    }
+    html += "'>";
+
+    if (largeView) {
+        html += "<h2>Radar</h2>";
+        html += "<p class='small'>Large live radar view. Aircraft movement is predicted between OpenSky updates and airports are shown using the current overlay settings.</p>";
+    } else {
+        html += "<h2>Browser Radar Preview</h2>";
+        html += "<p class='small'>Prototype renderer for the future TFT radar. Sweep animation is handled locally in the browser for smoother movement.</p>";
+    }
+
+    html += "<div class='radar-large-wrap'>";
+    html += "<canvas id='radarCanvas' width='";
+    html += String(canvasSize);
+    html += "' height='";
+    html += String(canvasSize);
+    html += "' style='width:100%;max-width:";
+    html += String(maxWidth);
+    html += "px;background:#020802;border:1px solid #245c24;border-radius:12px;display:block;'></canvas>";
+    html += "</div>";
+    html += "</div>";
+
+    html += R"rawliteral(
 <script>
 const radarCanvas = document.getElementById('radarCanvas');
 const radarContext = radarCanvas.getContext('2d');
@@ -811,6 +835,18 @@ setInterval(updateLogs, 3000);
 updateLogs();
 </script>
 )rawliteral";
+}
+
+
+void handleRadarPage() {
+    String html = buildPageHeader("DeskDar Radar", "radar");
+
+    appendSetupNotice(html);
+    appendBrowserRadar(html, true);
+
+    html += buildPageFooter();
+
+    server.send(200, "text/html", html);
 }
 
 void handleDashboardPage() {
@@ -1756,6 +1792,7 @@ void setup() {
 
     server.on("/", handleDashboardPage);
     server.on("/debug", handleDashboardPage);
+    server.on("/radar", handleRadarPage);
     server.on("/logs-page", handleLogsPage);
     server.on("/settings", handleSettingsPage);
     server.on("/save-settings", HTTP_POST, handleSaveSettings);
