@@ -8,6 +8,7 @@ struct DeskDarConfig {
     String postcode;
     String openSkyClientId;
     String openSkyClientSecret;
+    float radarOrientationDegrees;
 };
 
 bool loadConfig(DeskDarConfig& config);

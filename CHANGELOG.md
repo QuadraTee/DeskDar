@@ -1,3 +1,10 @@
+
+## v0.11-browser-radar-prediction
+- Added browser-side dead reckoning for smooth aircraft movement between OpenSky updates.
+- Added aircraft age data to `/aircraft.json`.
+- Browser radar now predicts aircraft positions using speed, heading, distance, bearing, and elapsed time.
+- Browser fade values now update continuously based on aircraft age.
+
 ## v0.8-dashboard-settings
 - Split first-boot onboarding into two stages:
   - captive portal now collects WiFi only
@@ -280,3 +287,16 @@ Persistent Aircraft Knowledge During Runtime
 - Aircraft history
 - Local metadata database
 - Multi-layer radar rendering
+## v0.9-browser-radar
+- Added browser-based radar preview using HTML canvas.
+- Added `/aircraft.json` endpoint for live aircraft dashboard data.
+- Added live sweep rendering, range rings, bearing grid, aircraft blips, labels, headings, and fade values in the dashboard.
+- Kept `/debug` as an alias for the main dashboard.
+
+
+## v0.10-browser-radar-orientation
+- Added persistent radar orientation / facing direction setting.
+- Browser radar now rotates aircraft and headings relative to configured facing direction.
+- Browser radar sweep now animates locally using `requestAnimationFrame()` for smoother motion.
+- Removed stale server-driven sweep value from the dashboard radar summary.
+

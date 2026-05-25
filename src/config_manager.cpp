@@ -26,6 +26,7 @@ bool loadConfig(DeskDarConfig& config) {
     config.postcode = preferences.getString("postcode", "");
     config.openSkyClientId = preferences.getString("os_id", "");
     config.openSkyClientSecret = preferences.getString("os_secret", "");
+    config.radarOrientationDegrees = preferences.getFloat("orientation", 0.0);
 
     preferences.end();
 
@@ -40,6 +41,7 @@ void saveConfig(const DeskDarConfig& config) {
     preferences.putString("postcode", config.postcode);
     preferences.putString("os_id", config.openSkyClientId);
     preferences.putString("os_secret", config.openSkyClientSecret);
+    preferences.putFloat("orientation", config.radarOrientationDegrees);
 
     preferences.end();
 }

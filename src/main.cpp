@@ -59,6 +59,29 @@ String htmlEscape(const String& value) {
     return escaped;
 }
 
+String jsonEscape(const String& value) {
+    String escaped = value;
+    escaped.replace("\\", "\\\\");
+    escaped.replace("\"", "\\\"");
+    escaped.replace("\n", "\\n");
+    escaped.replace("\r", "\\r");
+    escaped.replace("\t", "\\t");
+    return escaped;
+}
+
+float normaliseDegrees(float degrees) {
+    while (degrees < 0.0) {
+        degrees += 360.0;
+    }
+
+    while (degrees >= 360.0) {
+        degrees -= 360.0;
+    }
+
+    return degrees;
+}
+
+
 String getCurrentTimeString() {
     struct tm timeinfo;
 
@@ -348,6 +371,258 @@ function updateRadius(value) {
     html += "</div>";
 }
 
+void appendBrowserRadar(String& html) {
+    html += R"rawliteral(
+<div class='card'>
+<h2>Browser Radar Preview</h2>
+<p class='small'>Prototype renderer for the future TFT radar. Sweep animation is handled locally in the browser for smoother movement.</p>
+<canvas
+    id="radarCanvas"
+    width="520"
+    height="520"
+    style="
+        width:100%;
+        max-width:520px;
+        background:#020802;
+        border:1px solid #245c24;
+        border-radius:12px;
+        display:block;
+    "
+></canvas>
+</div>
+
+<script>
+const radarCanvas = document.getElementById('radarCanvas');
+const radarContext = radarCanvas.getContext('2d');
+
+let radarData = {
+    rangeKm: 25,
+    orientationDegrees: 0,
+    aircraft: []
+};
+
+const sweepDegreesPerSecond = 90;
+
+function normaliseDegrees(value) {
+    value = value % 360;
+    if (value < 0) value += 360;
+    return value;
+}
+
+function bearingToCanvasRadians(bearingDegrees) {
+    return bearingDegrees * Math.PI / 180;
+}
+
+function drawRadarGrid(centerX, centerY, radius, orientationDegrees) {
+    radarContext.fillStyle = '#020802';
+    radarContext.fillRect(0, 0, radarCanvas.width, radarCanvas.height);
+
+    radarContext.strokeStyle = 'rgba(0, 255, 80, 0.35)';
+    radarContext.lineWidth = 1;
+
+    for (let ring = 1; ring <= 4; ring++) {
+        radarContext.beginPath();
+        radarContext.arc(centerX, centerY, radius * ring / 4, 0, Math.PI * 2);
+        radarContext.stroke();
+    }
+
+    for (let angle = 0; angle < 360; angle += 45) {
+        const displayAngle = normaliseDegrees(angle - orientationDegrees);
+        const radians = bearingToCanvasRadians(displayAngle);
+
+        radarContext.beginPath();
+        radarContext.moveTo(centerX, centerY);
+        radarContext.lineTo(
+            centerX + Math.sin(radians) * radius,
+            centerY - Math.cos(radians) * radius
+        );
+        radarContext.stroke();
+    }
+
+    radarContext.strokeStyle = 'rgba(0, 255, 80, 0.7)';
+    radarContext.beginPath();
+    radarContext.arc(centerX, centerY, radius, 0, Math.PI * 2);
+    radarContext.stroke();
+
+    radarContext.fillStyle = 'rgba(0, 255, 80, 0.9)';
+    radarContext.font = '12px monospace';
+
+    const labels = [
+        { text: 'N', angle: 0 },
+        { text: 'E', angle: 90 },
+        { text: 'S', angle: 180 },
+        { text: 'W', angle: 270 }
+    ];
+
+    for (const label of labels) {
+        const displayAngle = normaliseDegrees(label.angle - orientationDegrees);
+        const radians = bearingToCanvasRadians(displayAngle);
+        const x = centerX + Math.sin(radians) * (radius + 16);
+        const y = centerY - Math.cos(radians) * (radius + 16);
+
+        radarContext.fillText(label.text, x - 4, y + 4);
+    }
+
+    radarContext.fillStyle = 'rgba(180, 255, 180, 0.9)';
+    radarContext.fillText('Facing ' + Math.round(orientationDegrees) + '°', 12, 20);
+}
+
+function drawSweep(centerX, centerY, radius, angleDegrees) {
+    const radians = bearingToCanvasRadians(angleDegrees);
+
+    const gradient = radarContext.createRadialGradient(
+        centerX,
+        centerY,
+        0,
+        centerX,
+        centerY,
+        radius
+    );
+
+    gradient.addColorStop(0, 'rgba(0, 255, 80, 0.25)');
+    gradient.addColorStop(1, 'rgba(0, 255, 80, 0.02)');
+
+    radarContext.save();
+    radarContext.beginPath();
+    radarContext.moveTo(centerX, centerY);
+    radarContext.arc(
+        centerX,
+        centerY,
+        radius,
+        radians - 0.45,
+        radians
+    );
+    radarContext.closePath();
+    radarContext.fillStyle = gradient;
+    radarContext.fill();
+
+    radarContext.strokeStyle = 'rgba(0, 255, 80, 0.9)';
+    radarContext.beginPath();
+    radarContext.moveTo(centerX, centerY);
+    radarContext.lineTo(
+        centerX + Math.sin(radians) * radius,
+        centerY - Math.cos(radians) * radius
+    );
+    radarContext.stroke();
+    radarContext.restore();
+}
+
+function predictAircraftPolar(aircraft) {
+    const ageMs = Math.max(0, aircraft.ageMs || 0);
+    const ageSeconds = ageMs / 1000;
+
+    const startBearingRadians = bearingToCanvasRadians(aircraft.bearingDegrees || 0);
+    let eastKm = Math.sin(startBearingRadians) * (aircraft.distanceKm || 0);
+    let northKm = Math.cos(startBearingRadians) * (aircraft.distanceKm || 0);
+
+    const headingRadians = bearingToCanvasRadians(aircraft.headingDegrees || 0);
+    const speedKmPerSecond = (aircraft.speedKnots || 0) * 0.000514444;
+    const travelledKm = speedKmPerSecond * ageSeconds;
+
+    eastKm += Math.sin(headingRadians) * travelledKm;
+    northKm += Math.cos(headingRadians) * travelledKm;
+
+    const predictedDistanceKm = Math.sqrt(
+        eastKm * eastKm +
+        northKm * northKm
+    );
+
+    const predictedBearingDegrees = normaliseDegrees(
+        Math.atan2(eastKm, northKm) * 180 / Math.PI
+    );
+
+    return {
+        distanceKm: predictedDistanceKm,
+        bearingDegrees: predictedBearingDegrees
+    };
+}
+
+function drawAircraft(aircraft, centerX, centerY, radius, rangeKm, orientationDegrees) {
+    const predicted = predictAircraftPolar(aircraft);
+
+    if (predicted.distanceKm > rangeKm) {
+        return;
+    }
+
+    const distanceRatio = Math.min(predicted.distanceKm / rangeKm, 1);
+    const displayBearing = normaliseDegrees(predicted.bearingDegrees - orientationDegrees);
+    const bearingRadians = bearingToCanvasRadians(displayBearing);
+
+    const x = centerX + Math.sin(bearingRadians) * radius * distanceRatio;
+    const y = centerY - Math.cos(bearingRadians) * radius * distanceRatio;
+
+    const ageMs = Math.max(0, aircraft.ageMs || 0);
+    const liveFadePercent = Math.max(0, 100 - ((ageMs / 60000) * 100));
+    const alpha = Math.max(0.15, liveFadePercent / 100);
+
+    radarContext.fillStyle = `rgba(0, 255, 80, ${alpha})`;
+    radarContext.beginPath();
+    radarContext.arc(x, y, 4, 0, Math.PI * 2);
+    radarContext.fill();
+
+    const displayHeading = normaliseDegrees(aircraft.headingDegrees - orientationDegrees);
+    const headingRadians = bearingToCanvasRadians(displayHeading);
+
+    radarContext.strokeStyle = `rgba(0, 255, 80, ${alpha})`;
+    radarContext.beginPath();
+    radarContext.moveTo(x, y);
+    radarContext.lineTo(
+        x + Math.sin(headingRadians) * 12,
+        y - Math.cos(headingRadians) * 12
+    );
+    radarContext.stroke();
+
+    radarContext.fillStyle = `rgba(180, 255, 180, ${alpha})`;
+    radarContext.font = '11px monospace';
+
+    const label = aircraft.callsign || aircraft.registration || aircraft.icao24;
+    radarContext.fillText(label, x + 7, y - 7);
+}
+
+async function fetchRadarData() {
+    try {
+        const response = await fetch('/aircraft.json');
+        radarData = await response.json();
+    } catch (error) {
+        console.log('Radar data update failed', error);
+    }
+}
+
+function drawBrowserRadarFrame(timestamp) {
+    const centerX = radarCanvas.width / 2;
+    const centerY = radarCanvas.height / 2;
+    const radius = Math.min(centerX, centerY) - 34;
+    const orientationDegrees = radarData.orientationDegrees || 0;
+
+    drawRadarGrid(centerX, centerY, radius, orientationDegrees);
+
+    const sweepAngle = normaliseDegrees(
+        (timestamp / 1000) * sweepDegreesPerSecond
+    );
+
+    drawSweep(centerX, centerY, radius, sweepAngle);
+
+    for (const aircraft of radarData.aircraft || []) {
+        drawAircraft(
+            aircraft,
+            centerX,
+            centerY,
+            radius,
+            radarData.rangeKm || 25,
+            orientationDegrees
+        );
+    }
+
+    requestAnimationFrame(drawBrowserRadarFrame);
+}
+
+setInterval(fetchRadarData, 3000);
+fetchRadarData();
+requestAnimationFrame(drawBrowserRadarFrame);
+</script>
+)rawliteral";
+}
+
 void appendLogsBox(String& html) {
     html += R"rawliteral(
 <div class='card'>
@@ -412,12 +687,13 @@ void handleDashboardPage() {
     html += "<p><strong>Range:</strong> ";
     html += String(getSearchRadiusKm(), 0);
     html += " km</p>";
+    html += "<p><strong>Orientation:</strong> ";
+    html += String(config.radarOrientationDegrees, 0);
+    html += " deg</p>";
     html += "<p><strong>Current aircraft:</strong> ";
     html += String(currentAircraftCount);
     html += "</p>";
-    html += "<p><strong>Sweep:</strong> ";
-    html += String(getRadarSweepAngleDegrees(), 0);
-    html += " deg</p></div>";
+    html += "</div>";
 
     html += "<div class='card'><h2>Location</h2>";
     html += "<p><strong>Ready:</strong> ";
@@ -443,6 +719,7 @@ void handleDashboardPage() {
 
     html += "</div>";
 
+    appendBrowserRadar(html);
     appendRadarRangeControl(html);
     appendLogsBox(html);
 
@@ -486,6 +763,12 @@ void handleSettingsPage() {
     html += htmlEscape(config.openSkyClientSecret);
     html += "' required>";
 
+    html += "<label>Radar Orientation / Facing Direction (degrees)</label>";
+    html += "<input name='radar_orientation' type='number' min='0' max='359' step='1' value='";
+    html += String(config.radarOrientationDegrees, 0);
+    html += "'>";
+    html += "<p class='small'>0 = north-up. Set this to the direction you face at your desk, for example 146 for south-east.</p>";
+
     html += "<button type='submit'>Save Settings & Restart</button>";
     html += "</form>";
     html += "</div>";
@@ -509,12 +792,14 @@ void handleSaveSettings() {
     String postcode = server.arg("postcode");
     String openSkyClientId = server.arg("opensky_client_id");
     String openSkyClientSecret = server.arg("opensky_client_secret");
+    float radarOrientation = normaliseDegrees(server.arg("radar_orientation").toFloat());
 
-    saveAppConfig(
-        postcode,
-        openSkyClientId,
-        openSkyClientSecret
-    );
+    config.postcode = postcode;
+    config.openSkyClientId = openSkyClientId;
+    config.openSkyClientSecret = openSkyClientSecret;
+    config.radarOrientationDegrees = radarOrientation;
+
+    saveConfig(config);
 
     server.send(
         200,
@@ -598,7 +883,7 @@ void handleSystemPage() {
 
     html += "<div class='card'><h2>Firmware</h2>";
     html += "<p><strong>Version:</strong> ";
-    html += "v0.8-dashboard-settings";
+    html += "v0.11-browser-radar-prediction";
     html += "</p></div>";
 
     html += "<div class='card'><h2>Memory</h2>";
@@ -622,6 +907,70 @@ void handleSystemPage() {
 
 void handleLogs() {
     server.send(200, "text/plain", debugLog);
+}
+
+void handleAircraftJson() {
+    String json = "";
+
+    json += "{";
+    json += "\"rangeKm\":";
+    json += String(getSearchRadiusKm(), 1);
+    json += ",";
+    json += "\"orientationDegrees\":";
+    json += String(config.radarOrientationDegrees, 1);
+    json += ",";
+    json += "\"aircraft\":[";
+
+    for (int i = 0; i < currentAircraftCount; i++) {
+        if (i > 0) {
+            json += ",";
+        }
+
+        const Aircraft& aircraft = currentAircraftList[i];
+
+        json += "{";
+        json += "\"icao24\":\"";
+        json += jsonEscape(aircraft.icao24);
+        json += "\",";
+        json += "\"callsign\":\"";
+        json += jsonEscape(aircraft.callsign);
+        json += "\",";
+        json += "\"registration\":\"";
+        json += jsonEscape(aircraft.registration);
+        json += "\",";
+        json += "\"model\":\"";
+        json += jsonEscape(aircraft.aircraftModel);
+        json += "\",";
+        json += "\"type\":\"";
+        json += jsonEscape(aircraft.aircraftType);
+        json += "\",";
+        json += "\"distanceKm\":";
+        json += String(aircraft.distanceKm, 2);
+        json += ",";
+        json += "\"bearingDegrees\":";
+        json += String(aircraft.bearingDegrees, 1);
+        json += ",";
+        json += "\"headingDegrees\":";
+        json += String(aircraft.headingDegrees, 1);
+        json += ",";
+        json += "\"altitudeFeet\":";
+        json += String(aircraft.altitudeFeet, 0);
+        json += ",";
+        json += "\"speedKnots\":";
+        json += String(aircraft.speedKnots, 0);
+        json += ",";
+        json += "\"ageMs\":";
+        json += String(millis() - aircraft.lastSeenMillis);
+        json += ",";
+        json += "\"fadePercent\":";
+        json += String(getAircraftFadePercent(aircraft, AIRCRAFT_FADE_MS));
+        json += "}";
+    }
+
+    json += "]";
+    json += "}";
+
+    server.send(200, "application/json", json);
 }
 
 void handleSetRadius() {
@@ -705,6 +1054,7 @@ void setup() {
     server.on("/save-settings", HTTP_POST, handleSaveSettings);
     server.on("/reset-config", HTTP_POST, handleResetConfig);
     server.on("/aircraft", handleAircraftPage);
+    server.on("/aircraft.json", handleAircraftJson);
     server.on("/system", handleSystemPage);
     server.on("/logs", handleLogs);
     server.on("/set-radius", handleSetRadius);
