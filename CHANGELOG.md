@@ -1,3 +1,9 @@
+# v0.21.1-webui-preload-radar-fix
+
+- Fixed browser radar blank canvas caused by cached-page navigation.
+- Dashboard and Radar now use normal navigation so canvas JavaScript initializes correctly.
+- Web UI preloading remains enabled for lighter pages such as Logs, Settings, Aircraft, System, and OTA.
+
 
 ## v0.16-ota-progress-update-check
 - Added OTA upload progress logging and progress bar.
@@ -338,3 +344,8 @@ Persistent Aircraft Knowledge During Runtime
 - Added a dedicated Radar tab with a larger browser radar canvas.
 - Kept the dashboard radar preview as a compact overview.
 
+
+## v0.21-webui-preload
+- Added client-side preloading for the web GUI navigation.
+- Cached dashboard pages in the browser session for faster tab switching.
+- Kept normal URL routes as compatibility fallbacks.

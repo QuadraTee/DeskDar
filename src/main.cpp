@@ -20,7 +20,7 @@
 DeskDarConfig config;
 WebServer server(80);
 
-const char* FIRMWARE_VERSION = "v0.20-large-radar-tab";
+const char* FIRMWARE_VERSION = "v0.21.1-webui-preload-radar-fix";
 const char* UPDATE_VERSION_URL = "https://quadratee.github.io/DeskDar/latest.txt";
 const char* UPDATE_FIRMWARE_URL = "https://quadratee.github.io/DeskDar/firmware.bin";
 
@@ -380,6 +380,76 @@ button.danger {
     justify-content: center;
 }
 </style>
+
+<script>
+(function() {
+    // Preload only simple pages. Dashboard and Radar contain canvas animation scripts
+    // and must use normal navigation so their JavaScript initialises correctly.
+    const DESKDAR_PAGES = ['/logs-page', '/settings', '/aircraft', '/system', '/ota'];
+
+    function cacheKey(url) {
+        return 'deskdar-page-cache:' + url;
+    }
+
+    async function preloadPage(url) {
+        try {
+            const response = await fetch(url, { cache: 'no-store' });
+            if (!response.ok) return;
+            const html = await response.text();
+            sessionStorage.setItem(cacheKey(url), html);
+        } catch (error) {
+            console.log('DeskDar preload failed for ' + url, error);
+        }
+    }
+
+    function preloadAllPages() {
+        for (const url of DESKDAR_PAGES) {
+            if (url !== window.location.pathname) {
+                preloadPage(url);
+            }
+        }
+    }
+
+    function installFastNavigation() {
+        document.querySelectorAll('nav a').forEach(function(link) {
+            const url = link.getAttribute('href');
+            if (!DESKDAR_PAGES.includes(url)) return;
+
+            link.addEventListener('mouseenter', function() {
+                preloadPage(url);
+            });
+
+            link.addEventListener('touchstart', function() {
+                preloadPage(url);
+            }, { passive: true });
+
+            link.addEventListener('click', function(event) {
+                const cached = sessionStorage.getItem(cacheKey(url));
+                if (!cached) {
+                    return;
+                }
+
+                event.preventDefault();
+
+                try {
+                    history.pushState(null, '', url);
+                    document.open();
+                    document.write(cached);
+                    document.close();
+                } catch (error) {
+                    window.location.href = url;
+                }
+            });
+        });
+    }
+
+    window.addEventListener('load', function() {
+        installFastNavigation();
+        setTimeout(preloadAllPages, 500);
+    });
+})();
+</script>
+
 )rawliteral";
     html += "</head><body>";
     html += "<header>";
