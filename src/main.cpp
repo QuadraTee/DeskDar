@@ -20,7 +20,7 @@
 DeskDarConfig config;
 WebServer server(80);
 
-const char* FIRMWARE_VERSION = "v0.21.1-webui-preload-radar-fix";
+const char* FIRMWARE_VERSION = "v0.23-aircraft-trail-controls";
 const char* UPDATE_VERSION_URL = "https://quadratee.github.io/DeskDar/latest.txt";
 const char* UPDATE_FIRMWARE_URL = "https://quadratee.github.io/DeskDar/firmware.bin";
 
@@ -561,6 +561,8 @@ let radarData = {
     orientationDegrees: 0,
     aircraft: [],
     airports: [],
+    showAircraftTrails: true,
+    trailFadeSeconds: 60,
     airportSettings: {
         showAirports: true,
         showMajorAirports: true,
@@ -569,6 +571,12 @@ let radarData = {
 };
 
 const sweepDegreesPerSecond = 90;
+const aircraftTrailHistory = {};
+const aircraftTrailMaxPoints = 14;
+const aircraftTrailSampleMs = 5000;
+const aircraftTrailDefaultFadeMs = 60000;
+const aircraftTrailMinSpacingPx = 8;
+
 
 function normaliseDegrees(value) {
     value = value % 360;
@@ -694,6 +702,168 @@ function predictAircraftPolar(aircraft) {
         distanceKm: predictedDistanceKm,
         bearingDegrees: predictedBearingDegrees
     };
+}
+
+function aircraftKey(aircraft) {
+    return aircraft.icao24 || aircraft.callsign || aircraft.registration || 'unknown';
+}
+
+function polarSeparationKm(a, b) {
+    const aRad = bearingToCanvasRadians(a.bearingDegrees || 0);
+    const bRad = bearingToCanvasRadians(b.bearingDegrees || 0);
+
+    const ax = Math.sin(aRad) * (a.distanceKm || 0);
+    const ay = Math.cos(aRad) * (a.distanceKm || 0);
+    const bx = Math.sin(bRad) * (b.distanceKm || 0);
+    const by = Math.cos(bRad) * (b.distanceKm || 0);
+
+    const dx = ax - bx;
+    const dy = ay - by;
+
+    return Math.sqrt((dx * dx) + (dy * dy));
+}
+
+function getTrailFadeMs() {
+    const seconds = radarData.trailFadeSeconds || 60;
+    return Math.max(10, Math.min(180, seconds)) * 1000;
+}
+
+function sampleAircraftTrails(timestamp) {
+    const activeKeys = {};
+
+    for (const aircraft of radarData.aircraft || []) {
+        const key = aircraftKey(aircraft);
+        if (!key || key === 'unknown') {
+            continue;
+        }
+
+        const predicted = predictAircraftPolar(aircraft);
+        const rangeKm = radarData.rangeKm || 25;
+
+        if (predicted.distanceKm > rangeKm) {
+            continue;
+        }
+
+        activeKeys[key] = true;
+
+        if (!aircraftTrailHistory[key]) {
+            aircraftTrailHistory[key] = { lastSampleMs: 0, points: [] };
+        }
+
+        const history = aircraftTrailHistory[key];
+        const trailFadeMs = getTrailFadeMs();
+
+        history.points = history.points.filter(point => timestamp - point.timestampMs <= trailFadeMs);
+
+        const lastPoint = history.points.length > 0 ? history.points[history.points.length - 1] : null;
+        const enoughTime = timestamp - history.lastSampleMs >= aircraftTrailSampleMs;
+
+        const minSpacingKm = Math.max(
+            0.15,
+            (aircraftTrailMinSpacingPx / 260.0) * rangeKm
+        );
+
+        const movedEnough = !lastPoint || polarSeparationKm(lastPoint, predicted) >= minSpacingKm;
+
+        if (enoughTime && movedEnough) {
+            history.points.push({
+                distanceKm: predicted.distanceKm,
+                bearingDegrees: predicted.bearingDegrees,
+                timestampMs: timestamp
+            });
+
+            while (history.points.length > aircraftTrailMaxPoints) {
+                history.points.shift();
+            }
+
+            history.lastSampleMs = timestamp;
+        }
+    }
+
+    for (const key of Object.keys(aircraftTrailHistory)) {
+        if (!activeKeys[key]) {
+            delete aircraftTrailHistory[key];
+            continue;
+        }
+
+        const history = aircraftTrailHistory[key];
+        const trailFadeMs = getTrailFadeMs();
+
+        history.points = history.points.filter(point => timestamp - point.timestampMs <= trailFadeMs);
+
+        if (history.points.length === 0) {
+            delete aircraftTrailHistory[key];
+        }
+    }
+}
+
+function polarToCanvasPoint(distanceKm, bearingDegrees, centerX, centerY, radius, rangeKm, orientationDegrees) {
+    const distanceRatio = Math.min(distanceKm / rangeKm, 1);
+    const displayBearing = normaliseDegrees(bearingDegrees - orientationDegrees);
+    const bearingRadians = bearingToCanvasRadians(displayBearing);
+
+    return {
+        x: centerX + Math.sin(bearingRadians) * radius * distanceRatio,
+        y: centerY - Math.cos(bearingRadians) * radius * distanceRatio
+    };
+}
+
+function drawAircraftTrails(centerX, centerY, radius, rangeKm, orientationDegrees, timestamp) {
+    if (!radarData.showAircraftTrails) {
+        return;
+    }
+
+    radarContext.save();
+    radarContext.setLineDash([2, 7]);
+    radarContext.lineWidth = 1.5;
+
+    for (const key of Object.keys(aircraftTrailHistory)) {
+        const points = aircraftTrailHistory[key].points || [];
+
+        if (points.length < 2) {
+            continue;
+        }
+
+        for (let i = 1; i < points.length; i++) {
+            const previous = polarToCanvasPoint(
+                points[i - 1].distanceKm,
+                points[i - 1].bearingDegrees,
+                centerX,
+                centerY,
+                radius,
+                rangeKm,
+                orientationDegrees
+            );
+
+            const current = polarToCanvasPoint(
+                points[i].distanceKm,
+                points[i].bearingDegrees,
+                centerX,
+                centerY,
+                radius,
+                rangeKm,
+                orientationDegrees
+            );
+
+            const ageMs = Math.max(0, timestamp - points[i].timestampMs);
+            const ageFade = Math.max(0, 1 - (ageMs / getTrailFadeMs()));
+            const sequenceFade = i / points.length;
+            const alpha = Math.max(0.08, Math.min(0.55, ageFade * sequenceFade * 0.55));
+
+            radarContext.strokeStyle = `rgba(0, 255, 80, ${alpha})`;
+            radarContext.beginPath();
+            radarContext.moveTo(previous.x, previous.y);
+            radarContext.lineTo(current.x, current.y);
+            radarContext.stroke();
+
+            radarContext.fillStyle = `rgba(0, 255, 80, ${Math.min(0.65, alpha + 0.12)})`;
+            radarContext.beginPath();
+            radarContext.arc(previous.x, previous.y, 1.8, 0, Math.PI * 2);
+            radarContext.fill();
+        }
+    }
+
+    radarContext.restore();
 }
 
 
@@ -838,6 +1008,16 @@ function drawBrowserRadarFrame(timestamp) {
             orientationDegrees
         );
     }
+
+    sampleAircraftTrails(timestamp);
+    drawAircraftTrails(
+        centerX,
+        centerY,
+        radius,
+        radarData.rangeKm || 25,
+        orientationDegrees,
+        timestamp
+    );
 
     for (const aircraft of radarData.aircraft || []) {
         drawAircraft(
@@ -1053,6 +1233,19 @@ void handleSettingsPage() {
     html += config.showLabelHeading ? "checked" : "";
     html += "></label>";
 
+    html += "<h3>Aircraft Trails</h3>";
+    html += "<p class='small'>Show dotted historical paths behind aircraft on the browser radar.</p>";
+
+    html += "<label class='setting-row'><span>Show aircraft trails</span><input type='checkbox' name='show_trails' ";
+    html += config.showAircraftTrails ? "checked" : "";
+    html += "></label>";
+
+    html += "<label class='setting-row'><span>Trail fade time</span><span><input type='range' min='10' max='180' step='5' name='trail_fade_seconds' value='";
+    html += String(config.trailFadeSeconds);
+    html += "' oninput=\"document.getElementById('trailFadeValue').innerText=this.value\"> <strong><span id='trailFadeValue'>";
+    html += String(config.trailFadeSeconds);
+    html += "</span>s</strong></span></label>";
+
 
     html += "<h3>Airport Display</h3>";
     html += "<p class='small'>Show fixed UK airport and airfield markers on the browser radar.</p>";
@@ -1110,6 +1303,16 @@ void handleSaveSettings() {
     config.showLabelAltitude = server.hasArg("show_altitude");
     config.showLabelSpeed = server.hasArg("show_speed");
     config.showLabelHeading = server.hasArg("show_heading");
+    config.showAircraftTrails = server.hasArg("show_trails");
+    config.trailFadeSeconds = server.arg("trail_fade_seconds").toInt();
+
+    if (config.trailFadeSeconds < 10) {
+        config.trailFadeSeconds = 10;
+    }
+
+    if (config.trailFadeSeconds > 180) {
+        config.trailFadeSeconds = 180;
+    }
 
     config.showAirports = server.hasArg("show_airports");
     config.showMajorAirports = server.hasArg("show_major_airports");
@@ -1666,6 +1869,12 @@ void handleAircraftJson() {
     json += ",\"heading\":";
     json += config.showLabelHeading ? "true" : "false";
     json += "},";
+    json += "\"showAircraftTrails\":";
+    json += config.showAircraftTrails ? "true" : "false";
+    json += ",";
+    json += "\"trailFadeSeconds\":";
+    json += String(config.trailFadeSeconds);
+    json += ",";
     json += "\"airportSettings\":{";
     json += "\"showAirports\":";
     json += config.showAirports ? "true" : "false";

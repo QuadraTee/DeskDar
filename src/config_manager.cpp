@@ -35,6 +35,8 @@ bool loadConfig(DeskDarConfig& config) {
     config.showLabelAltitude = preferences.getBool("lbl_alt", true);
     config.showLabelSpeed = preferences.getBool("lbl_speed", false);
     config.showLabelHeading = preferences.getBool("lbl_heading", false);
+    config.showAircraftTrails = preferences.getBool("show_trails", true);
+    config.trailFadeSeconds = preferences.getInt("trail_fade_s", 60);
 
     config.showAirports = preferences.getBool("show_ap", true);
     config.showMajorAirports = preferences.getBool("show_ap_major", true);
@@ -62,6 +64,8 @@ void saveConfig(const DeskDarConfig& config) {
     preferences.putBool("lbl_alt", config.showLabelAltitude);
     preferences.putBool("lbl_speed", config.showLabelSpeed);
     preferences.putBool("lbl_heading", config.showLabelHeading);
+    preferences.putBool("show_trails", config.showAircraftTrails);
+    preferences.putInt("trail_fade_s", config.trailFadeSeconds);
 
     preferences.putBool("show_ap", config.showAirports);
     preferences.putBool("show_ap_major", config.showMajorAirports);

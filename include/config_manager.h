@@ -17,6 +17,8 @@ struct DeskDarConfig {
     bool showLabelAltitude;
     bool showLabelSpeed;
     bool showLabelHeading;
+    bool showAircraftTrails;
+    int trailFadeSeconds;
 
     bool showAirports;
     bool showMajorAirports;

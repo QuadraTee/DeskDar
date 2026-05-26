@@ -1,3 +1,11 @@
+# v0.22-aircraft-trails
+
+- Added browser radar aircraft trails.
+- Added persistent Settings toggle for showing/hiding aircraft trails.
+- Trails are rendered as dotted, fading historical paths behind aircraft.
+
+---
+
 # v0.21.1-webui-preload-radar-fix
 
 - Fixed browser radar blank canvas caused by cached-page navigation.
@@ -349,3 +357,9 @@ Persistent Aircraft Knowledge During Runtime
 - Added client-side preloading for the web GUI navigation.
 - Cached dashboard pages in the browser session for faster tab switching.
 - Kept normal URL routes as compatibility fallbacks.
+
+
+## v0.23-aircraft-trail-controls
+- Added configurable aircraft trail fade time.
+- Removed aircraft trails immediately when aircraft leave radar range.
+- Added minimum trail-point spacing to reduce stacked dots for slow aircraft.
