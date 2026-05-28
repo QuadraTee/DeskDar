@@ -37,6 +37,10 @@ bool loadConfig(DeskDarConfig& config) {
     config.showLabelHeading = preferences.getBool("lbl_heading", false);
     config.showAircraftTrails = preferences.getBool("show_trails", true);
     config.trailFadeSeconds = preferences.getInt("trail_fade_s", 60);
+    config.disableAircraftFade = preferences.getBool("disable_fade", false);
+
+    config.showTftIpAddress = preferences.getBool("show_tft_ip", true);
+    config.showTftRadarRange = preferences.getBool("show_tft_range", true);
 
     config.showAirports = preferences.getBool("show_ap", true);
     config.showMajorAirports = preferences.getBool("show_ap_major", true);
@@ -66,6 +70,10 @@ void saveConfig(const DeskDarConfig& config) {
     preferences.putBool("lbl_heading", config.showLabelHeading);
     preferences.putBool("show_trails", config.showAircraftTrails);
     preferences.putInt("trail_fade_s", config.trailFadeSeconds);
+    preferences.putBool("disable_fade", config.disableAircraftFade);
+
+    preferences.putBool("show_tft_ip", config.showTftIpAddress);
+    preferences.putBool("show_tft_range", config.showTftRadarRange);
 
     preferences.putBool("show_ap", config.showAirports);
     preferences.putBool("show_ap_major", config.showMajorAirports);

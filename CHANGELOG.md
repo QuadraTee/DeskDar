@@ -1,3 +1,38 @@
+## v0.27.0-tft-background-opensky-fetch
+
+- Fixed the TFT appearing the freeze when the opensky api call too place.
+
+## v0.26.9-tft-real-ip-build-fix
+
+- Fixed TFT setup/incomplete screen IP address rendering build issue.
+- Added real device IP address to TFT incomplete setup instructions.
+
+
+## v0.26.2-tft-trail-buffer-fix
+
+- Added a proper TFT-side aircraft trail history update path.
+- TFT trails are now updated before rendering and cleaned when aircraft leave radar range.
+- Made TFT trail dots more visible on the 240x240 8-bit sprite display.
+
+## v0.25-display-visibility-controls
+
+- Added setting to disable aircraft fade on browser radar and TFT.
+- Added settings to hide TFT IP/status text and radar range text.
+- Display preferences persist and apply without reboot.
+
+## v0.24.9-tft-label-anchor-fix
+
+- Improved TFT aircraft label anchoring so labels stay close to aircraft blips.
+- Added dynamic label width measurement and screen-edge clamping.
+
+# v0.24.5-tft-adaptive-sprite
+
+- Added adaptive TFT sprite allocation.
+- Tries 8-bit sprite first, then smaller/lower-depth fallbacks.
+- Prevents permanent "Sprite failed" screen by falling back to direct TFT status mode.
+- Keeps sprite creation in TFT init only, not inside the render loop.
+- Added TFT sprite diagnostics to Serial output.
+
 # v0.22-aircraft-trails
 
 - Added browser radar aircraft trails.
@@ -363,3 +398,38 @@ Persistent Aircraft Knowledge During Runtime
 - Added configurable aircraft trail fade time.
 - Removed aircraft trails immediately when aircraft leave radar range.
 - Added minimum trail-point spacing to reduce stacked dots for slow aircraft.
+
+
+## v0.24-tft-display-support
+- Added initial TFT_eSPI display support.
+- Added ESP32 SPI TFT pin configuration for SCK 18, MOSI 23, CS 5, DC 2, RST 4.
+- Added basic green-on-black radar grid and aircraft blips on the TFT.
+- Browser dashboard and OTA backend remain unchanged.
+
+
+## v0.24.3-st7789-renderer-fix
+
+- Corrected TFT_eSPI build flags for ST7789 240x240 display.
+- Lowered TFT SPI frequency for improved signal stability.
+- Kept sprite/backbuffer renderer for reduced flicker.
+- Set TFT rotation to 0 for initial ST7789 baseline.
+
+
+## v0.24.4-tft-low-memory-sprite
+
+- Changed TFT radar sprite to 8-bit colour depth to reduce RAM usage.
+- Fixes sprite allocation failure on 240x240 ST7789 displays.
+
+
+## v0.24.6-tft-labels-soft-sweep
+
+- TFT renderer now respects aircraft label settings from the web dashboard.
+- Added multi-line TFT aircraft labels for registration, model, type, distance, altitude, speed and heading.
+- Improved TFT sweep rendering with a softer multi-band wedge rather than a single solid wedge.
+
+
+## v0.26.3-tft-predicted-trails
+
+- Fixed TFT aircraft trails by drawing predicted historical trail dots directly from aircraft speed, heading and age.
+- TFT trails no longer depend on browser-side trail state or retained sprite history.
+- Preserves trail fade-time and show/hide settings.

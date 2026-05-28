@@ -19,6 +19,10 @@ struct DeskDarConfig {
     bool showLabelHeading;
     bool showAircraftTrails;
     int trailFadeSeconds;
+    bool disableAircraftFade;
+
+    bool showTftIpAddress;
+    bool showTftRadarRange;
 
     bool showAirports;
     bool showMajorAirports;

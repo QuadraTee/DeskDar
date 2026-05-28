@@ -5,6 +5,7 @@
 
 #include "setup_portal.h"
 #include "config_manager.h"
+#include "tft_display.h"
 
 WebServer setupServer(80);
 DNSServer dnsServer;
@@ -87,6 +88,8 @@ void startSetupPortal() {
     });
 
     setupServer.begin();
+
+    showTftSetupPortalScreen();
 
     while (true) {
         dnsServer.processNextRequest();

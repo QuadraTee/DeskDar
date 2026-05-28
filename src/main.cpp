@@ -16,11 +16,12 @@
 #include "config_manager.h"
 #include "setup_portal.h"
 #include "airport_landmarks.h"
+#include "tft_display.h"
 
 DeskDarConfig config;
 WebServer server(80);
 
-const char* FIRMWARE_VERSION = "v0.23-aircraft-trail-controls";
+const char* FIRMWARE_VERSION = "v0.27-background-opensky-fetch";
 const char* UPDATE_VERSION_URL = "https://quadratee.github.io/DeskDar/latest.txt";
 const char* UPDATE_FIRMWARE_URL = "https://quadratee.github.io/DeskDar/firmware.bin";
 
@@ -54,8 +55,18 @@ unsigned long lastFrameTime = 0;
 Aircraft currentAircraftList[MAX_AIRCRAFT];
 int currentAircraftCount = 0;
 
+Aircraft pendingAircraftList[MAX_AIRCRAFT];
+int pendingAircraftCount = 0;
+int pendingAircraftResult = 0;
+
+volatile bool aircraftFetchTaskRunning = false;
+volatile bool aircraftFetchResultReady = false;
+
+
 bool connectWiFi();
 bool initialiseDeskDarServices();
+void aircraftFetchTask(void* parameter);
+void handleAircraftFetchResult();
 
 String htmlEscape(const String& value) {
     String escaped = value;
@@ -242,6 +253,89 @@ void metadataTask(void* parameter) {
 
     vTaskDelete(NULL);
 }
+
+void aircraftFetchTask(void* parameter) {
+    Aircraft taskAircraftList[MAX_AIRCRAFT];
+
+    int aircraftCount = fetchNearbyAircraft(
+        userLatitude,
+        userLongitude,
+        taskAircraftList,
+        MAX_AIRCRAFT,
+        openSkyToken
+    );
+
+    pendingAircraftResult = aircraftCount;
+
+    if (aircraftCount > 0) {
+        pendingAircraftCount = aircraftCount;
+
+        for (int i = 0; i < aircraftCount; i++) {
+            pendingAircraftList[i] = taskAircraftList[i];
+        }
+    } else {
+        pendingAircraftCount = 0;
+    }
+
+    aircraftFetchResultReady = true;
+    aircraftFetchTaskRunning = false;
+
+
+    vTaskDelete(NULL);
+}
+
+void handleAircraftFetchResult() {
+    if (!aircraftFetchResultReady) {
+        return;
+    }
+
+    Aircraft fetchedAircraftList[MAX_AIRCRAFT];
+    int fetchedAircraftCount = 0;
+    int fetchResult = 0;
+
+    fetchResult = pendingAircraftResult;
+    fetchedAircraftCount = pendingAircraftCount;
+
+    if (fetchedAircraftCount > MAX_AIRCRAFT) {
+        fetchedAircraftCount = MAX_AIRCRAFT;
+    }
+
+    for (int i = 0; i < fetchedAircraftCount; i++) {
+        fetchedAircraftList[i] = pendingAircraftList[i];
+    }
+
+    aircraftFetchResultReady = false;
+
+    if (fetchResult == -1) {
+        addDebugLog("OpenSky token expired. Refreshing token...");
+
+        if (fetchOpenSkyToken(
+            config.openSkyClientId,
+            config.openSkyClientSecret,
+            openSkyToken
+        )) {
+            addDebugLog("OpenSky token refreshed.");
+        } else {
+            addDebugLog("OpenSky token refresh failed.");
+        }
+
+        return;
+    }
+
+    currentAircraftCount = fetchedAircraftCount;
+
+    for (int i = 0; i < currentAircraftCount; i++) {
+        currentAircraftList[i] = fetchedAircraftList[i];
+    }
+
+    addDebugLog("Aircraft fetched: " + String(currentAircraftCount));
+    addAircraftToDebugLog(currentAircraftList, currentAircraftCount);
+
+    renderAircraftList(currentAircraftList, currentAircraftCount);
+    renderAsciiRadar(currentAircraftList, currentAircraftCount);
+    renderRadarFrame(currentAircraftList, currentAircraftCount);
+}
+
 
 String buildPageHeader(const String& title, const String& activeTab) {
     String html = "";
@@ -563,6 +657,7 @@ let radarData = {
     airports: [],
     showAircraftTrails: true,
     trailFadeSeconds: 60,
+    disableAircraftFade: false,
     airportSettings: {
         showAirports: true,
         showMajorAirports: true,
@@ -915,7 +1010,7 @@ function drawAircraft(aircraft, centerX, centerY, radius, rangeKm, orientationDe
 
     const ageMs = Math.max(0, aircraft.ageMs || 0);
     const liveFadePercent = Math.max(0, 100 - ((ageMs / 60000) * 100));
-    const alpha = Math.max(0.15, liveFadePercent / 100);
+    const alpha = radarData.disableAircraftFade ? 1.0 : Math.max(0.15, liveFadePercent / 100);
 
     radarContext.fillStyle = `rgba(0, 255, 80, ${alpha})`;
     radarContext.beginPath();
@@ -1203,7 +1298,7 @@ void handleSettingsPage() {
     html += "<p class='small'>0 = north-up. Set this to the direction you face at your desk, for example 146 for south-east.</p>";
 
     html += "<h3>Radar Label Display</h3>";
-    html += "<p class='small'>Choose what appears under each aircraft callsign on the browser radar.</p>";
+    html += "<p class='small'>Choose what appears under each aircraft callsign on the browser radar and TFT display.</p>";
 
     html += "<label class='setting-row'><span>Registration</span><input type='checkbox' name='show_registration' ";
     html += config.showLabelRegistration ? "checked" : "";
@@ -1233,8 +1328,12 @@ void handleSettingsPage() {
     html += config.showLabelHeading ? "checked" : "";
     html += "></label>";
 
+    html += "<label class='setting-row'><span>Disable aircraft fade</span><input type='checkbox' name='disable_aircraft_fade' ";
+    html += config.disableAircraftFade ? "checked" : "";
+    html += "></label>";
+
     html += "<h3>Aircraft Trails</h3>";
-    html += "<p class='small'>Show dotted historical paths behind aircraft on the browser radar.</p>";
+    html += "<p class='small'>Show dotted historical paths behind aircraft on the browser radar and TFT display.</p>";
 
     html += "<label class='setting-row'><span>Show aircraft trails</span><input type='checkbox' name='show_trails' ";
     html += config.showAircraftTrails ? "checked" : "";
@@ -1245,6 +1344,17 @@ void handleSettingsPage() {
     html += "' oninput=\"document.getElementById('trailFadeValue').innerText=this.value\"> <strong><span id='trailFadeValue'>";
     html += String(config.trailFadeSeconds);
     html += "</span>s</strong></span></label>";
+
+    html += "<h3>TFT Display</h3>";
+    html += "<p class='small'>Choose which status items appear on the physical TFT display.</p>";
+
+    html += "<label class='setting-row'><span>Show TFT IP address/status</span><input type='checkbox' name='show_tft_ip' ";
+    html += config.showTftIpAddress ? "checked" : "";
+    html += "></label>";
+
+    html += "<label class='setting-row'><span>Show TFT radar range</span><input type='checkbox' name='show_tft_range' ";
+    html += config.showTftRadarRange ? "checked" : "";
+    html += "></label>";
 
 
     html += "<h3>Airport Display</h3>";
@@ -1305,6 +1415,10 @@ void handleSaveSettings() {
     config.showLabelHeading = server.hasArg("show_heading");
     config.showAircraftTrails = server.hasArg("show_trails");
     config.trailFadeSeconds = server.arg("trail_fade_seconds").toInt();
+    config.disableAircraftFade = server.hasArg("disable_aircraft_fade");
+
+    config.showTftIpAddress = server.hasArg("show_tft_ip");
+    config.showTftRadarRange = server.hasArg("show_tft_range");
 
     if (config.trailFadeSeconds < 10) {
         config.trailFadeSeconds = 10;
@@ -1875,6 +1989,9 @@ void handleAircraftJson() {
     json += "\"trailFadeSeconds\":";
     json += String(config.trailFadeSeconds);
     json += ",";
+    json += "\"disableAircraftFade\":";
+    json += config.disableAircraftFade ? "true" : "false";
+    json += ",";
     json += "\"airportSettings\":{";
     json += "\"showAirports\":";
     json += config.showAirports ? "true" : "false";
@@ -2014,8 +2131,11 @@ bool initialiseDeskDarServices() {
     appConfigReady = hasAppConfig(config);
 
     if (!appConfigReady) {
-        addDebugLog("DeskDar app setup incomplete. Open Settings to enter postcode and OpenSky credentials.");
+        addDebugLog("DeskDar app setup incomplete. Open browser at:\nhttp://"+WiFi.localIP().toString()+"\nThen enter postcode and OpenSky credentials.");
         locationReady = false;
+
+        showTftAppSetupIncompleteScreen(WiFi.localIP().toString());
+
         return false;
     }
 
@@ -2054,6 +2174,8 @@ void setup() {
     delay(1000);
 
     Serial.println();
+
+    initTftDisplay();
 
     if (!loadConfig(config)) {
         Serial.println("No saved WiFi config found.");
@@ -2110,13 +2232,31 @@ void setup() {
 
 void loop() {
     server.handleClient();
+    handleAircraftFetchResult();
+
+    unsigned long now = millis();
 
     if (!appConfigReady || !locationReady) {
+        if (now - lastFrameTime >= FRAME_INTERVAL_MS) {
+            lastFrameTime = now;
+
+            updateTftDisplay(
+                currentAircraftList,
+                currentAircraftCount,
+                locationReady,
+                appConfigReady,
+                getSearchRadiusKm(),
+                userLatitude,
+                userLongitude,
+                config,
+                appConfigReady ? "Waiting for location/API" : "Setup incomplete",
+                WiFi.localIP().toString()
+            );
+        }
+
         delay(50);
         return;
     }
-
-    unsigned long now = millis();
 
     bool aircraftDue =
         lastAircraftRefresh == 0 ||
@@ -2131,43 +2271,27 @@ void loop() {
     bool metadataDue =
         now - lastMetadataRefresh >= METADATA_REFRESH_MS;
 
-    if (aircraftDue) {
+    if (aircraftDue && !aircraftFetchTaskRunning && !metadataTaskRunning) {
         lastAircraftRefresh = now;
 
-        addDebugLog("Fetching aircraft from OpenSky...");
+        addDebugLog("Starting OpenSky aircraft fetch task");
 
-        int aircraftCount = fetchNearbyAircraft(
-            userLatitude,
-            userLongitude,
-            currentAircraftList,
-            MAX_AIRCRAFT,
-            openSkyToken
+        aircraftFetchTaskRunning = true;
+
+        BaseType_t taskCreated = xTaskCreatePinnedToCore(
+            aircraftFetchTask,
+            "AircraftFetchTask",
+            24576,
+            NULL,
+            1,
+            NULL,
+            0
         );
 
-        if (aircraftCount == -1) {
-            addDebugLog("OpenSky token expired. Refreshing token...");
-
-            if (fetchOpenSkyToken(
-                config.openSkyClientId,
-                config.openSkyClientSecret,
-                openSkyToken
-            )) {
-                addDebugLog("OpenSky token refreshed.");
-            } else {
-                addDebugLog("OpenSky token refresh failed.");
-            }
-
-            return;
+        if (taskCreated != pdPASS) {
+            aircraftFetchTaskRunning = false;
+            addDebugLog("Failed to start OpenSky aircraft fetch task.");
         }
-
-        currentAircraftCount = aircraftCount;
-
-        addDebugLog("Aircraft fetched: " + String(currentAircraftCount));
-        addAircraftToDebugLog(currentAircraftList, currentAircraftCount);
-
-        renderAircraftList(currentAircraftList, currentAircraftCount);
-        renderAsciiRadar(currentAircraftList, currentAircraftCount);
-        renderRadarFrame(currentAircraftList, currentAircraftCount);
     }
     else if (
         !metadataTaskRunning &&
@@ -2194,6 +2318,19 @@ void loop() {
         lastFrameTime = now;
         updateRadarSweep(now);
         updatePredictedAircraftPositions();
+
+        updateTftDisplay(
+            currentAircraftList,
+            currentAircraftCount,
+            locationReady,
+            appConfigReady,
+            getSearchRadiusKm(),
+            userLatitude,
+            userLongitude,
+            config,
+            WiFi.localIP().toString(),
+            WiFi.localIP().toString()
+        );
     }
 }
 
